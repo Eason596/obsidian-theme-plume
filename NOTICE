@@ -1,0 +1,56 @@
+Attribution and upstream licenses
+=================================
+
+Obsidian Plume (obsidian-theme-plume)
+-------------------------------------
+
+This Obsidian plugin was created by porting concepts, markup conventions, styles,
+and implementation patterns from VuePress Theme Plume to Obsidian. Much of the
+migration was performed with AI-assisted development tools (e.g. Cursor).
+
+This repository is not affiliated with, endorsed by, or maintained by the
+vuepress-theme-plume authors. It is an independent community port for Obsidian.
+
+Upstream: vuepress-theme-plume
+------------------------------
+
+- Project: https://github.com/pengzhanbo/vuepress-theme-plume
+- License: MIT License
+- Copyright: Copyright (C) 2021 - PRESENT by pengzhanbo
+
+Portions of this project (including but not limited to Plume container syntax,
+visual design, file-tree icon mappings, and related assets) are derived from or
+inspired by vuepress-theme-plume and remain subject to the upstream MIT license.
+The upstream copyright notice and permission text are reproduced below.
+
+---
+
+The MIT License (MIT) — vuepress-theme-plume
+
+Copyright (C) 2021 - PRESENT by pengzhanbo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+---
+
+Third-party assets
+------------------
+
+Generated offline icon data may include SVG from Iconify collections
+(e.g. @iconify-json/vscode-icons, mdi, logos). See each package's license on npm.
