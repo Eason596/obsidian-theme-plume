@@ -1,0 +1,2330 @@
+.obsidian-vuepress-file-tree {
+  position: relative;
+  max-width: 100%;
+  padding: 14px 14px 10px;
+  overflow: auto hidden;
+  font-size: 13px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-title {
+  padding: 8px 12px;
+  margin: -14px -14px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-vuepress-file-tree .obsidian-file-tree-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.obsidian-vuepress-file-tree:hover .obsidian-file-tree-copy,
+.obsidian-vuepress-file-tree .obsidian-file-tree-copy.is-copied {
+  opacity: 1;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-node {
+  position: relative;
+  min-width: max-content;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: max-content;
+  height: 26px;
+  padding: 1px 0;
+  margin: 0 0 0 14px;
+  line-height: 24px;
+  text-wrap: nowrap;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info::after {
+  position: absolute;
+  top: 0;
+  right: -12px;
+  bottom: 0;
+  left: calc(var(--file-tree-level) * 28px - 30px);
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+  content: "";
+  background-color: transparent;
+  border-radius: 4px;
+  transition: background-color 150ms ease;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.active::after,
+.obsidian-vuepress-file-tree .vp-file-tree-info:not(.diff):hover::after {
+  background-color: var(--background-modifier-hover);
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.diff.add::after {
+  color: #0f766e;
+  content: "+";
+  background-color: rgba(16, 185, 129, 0.16);
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.diff.remove::after {
+  color: #b91c1c;
+  content: "-";
+  background-color: rgba(248, 113, 113, 0.2);
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.folder {
+  cursor: pointer;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.folder::before {
+  position: absolute;
+  top: 9px;
+  left: -14px;
+  width: 0;
+  height: 0;
+  content: "";
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--text-muted);
+  transform-origin: 35% 50%;
+  transition: transform 150ms ease;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.folder.expanded::before {
+  transform: rotate(90deg);
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info .name {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-monospace);
+  color: var(--text-normal);
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.folder .name {
+  font-weight: 500;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.focus .name {
+  padding: 0 4px;
+  margin: 0 -4px;
+  font-weight: 600;
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+  border-radius: 4px;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info.active .name,
+.obsidian-vuepress-file-tree .vp-file-tree-info:not(.focus).folder .name:hover {
+  color: var(--interactive-accent);
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info .comment {
+  display: inline-block;
+  flex: 1 1;
+  min-width: 0;
+  min-height: 26px;
+  padding-right: 10px;
+  padding-left: 16px;
+  margin: -1px 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  line-height: 26px;
+  text-overflow: ellipsis;
+  cursor: auto;
+  white-space: nowrap;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info .comment p {
+  display: inline;
+  margin: 0;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info .comment strong {
+  font-weight: 600;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info .comment em {
+  font-style: italic;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info .comment code {
+  padding: 0 4px;
+  font-family: var(--font-monospace);
+  font-size: 0.95em;
+  background-color: var(--background-modifier-hover);
+  border-radius: 4px;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info .comment a {
+  color: var(--text-accent);
+  text-decoration: underline;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-node .group {
+  position: relative;
+  min-width: max-content;
+  margin-left: 28px;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-node .group::before {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 1px;
+  height: 100%;
+  content: "";
+  background-color: var(--background-modifier-border);
+}
+
+.obsidian-vuepress-file-tree .ft-icon {
+  position: relative;
+  z-index: 1;
+  width: 1.1em;
+  height: 1.1em;
+  color: var(--text-muted);
+  transition: color 150ms ease, transform 120ms ease;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-icon-offline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-icon-offline > svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.obsidian-vuepress-file-tree .vp-file-tree-info:hover .ft-icon {
+  transform: translateY(-1px);
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-folder {
+  color: #ca8a04;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-src {
+  color: #0ea5e9;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-docs {
+  color: #22c55e;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-tests {
+  color: #f97316;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-dist {
+  color: #a855f7;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-public,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-assets {
+  color: #06b6d4;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-scripts,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-code,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-typescript,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-javascript,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-vue {
+  color: #38bdf8;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-config,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-json {
+  color: #22d3ee;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-style {
+  color: #a78bfa;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-markdown,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-markup {
+  color: #34d399;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-image,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-media {
+  color: #f59e0b;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-archive,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-lock,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-package {
+  color: #f43f5e;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-doc {
+  color: #22c55e;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-security,
+.obsidian-vuepress-file-tree .ft-icon.ft-color-env {
+  color: #10b981;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-git {
+  color: #f97316;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-docker {
+  color: #0ea5e9;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-database {
+  color: #22d3ee;
+}
+
+.obsidian-vuepress-file-tree .ft-icon.ft-color-default {
+  color: var(--text-muted);
+}
+
+.vp-file-tree-hidden {
+  display: none !important;
+}
+
+.vp-section-hidden,
+.plume-section-absorbed {
+  /* Must NOT use display:none -- detaching from offsetParent chain breaks
+     Obsidian's reading-view outline scroll math. Use height:0+overflow:hidden
+     so offsetTop still reflects real DOM Y. Inline styles in preview-pipeline
+     set height/visibility; this class keeps zero-impact in flow. */
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  border: none !important;
+}
+
+.plume-render-error {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--background-modifier-error);
+  border-radius: 8px;
+  background-color: var(--background-modifier-error-hover);
+}
+
+.plume-render-error > p {
+  margin: 0 0 8px;
+  font-size: var(--font-ui-small);
+  color: var(--text-error);
+}
+
+.plume-render-error > pre {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  font-size: var(--font-smaller);
+  opacity: 0.85;
+}
+
+.markdown-preview-section.plume-has-block {
+  min-height: unset !important;
+}
+
+/* Tighter vertical rhythm between Plume blocks in reading view */
+.markdown-reading-view .markdown-preview-section.plume-has-block {
+  margin-block: 0;
+}
+
+.markdown-reading-view .plume-has-block > :is(
+  .obsidian-vuepress-file-tree,
+  .obsidian-vuepress-code-tree,
+  .obsidian-vuepress-collapse,
+  .vp-tabs,
+  .vp-steps,
+  .vp-custom-container,
+  .vp-card-grid,
+  .vp-card-masonry,
+  .vp-repo-card,
+  .vp-link-card,
+  .vp-image-card,
+  .vp-field-group,
+  .vp-flex,
+  .vp-window,
+  .vp-chat,
+  .vp-timeline
+) {
+  margin-block: 10px;
+}
+
+.markdown-reading-view .plume-has-block > :first-child {
+  margin-top: 0;
+}
+
+.markdown-reading-view .plume-has-block > :last-child {
+  margin-bottom: 0;
+}
+
+.vp-block-placeholder {
+  display: block;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+.obsidian-vuepress-code-tree {
+  padding: 0;
+  overflow: hidden;
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-title {
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-body {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: var(--vp-code-tree-height, 400px);
+  min-height: 220px;
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-nav {
+  flex: 0 0 40%;
+  min-width: 200px;
+  max-width: 380px;
+  padding: 8px 10px 10px;
+  overflow: auto;
+  border-right: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-panel {
+  display: flex;
+  flex: 1 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-panel-header {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  overflow: hidden;
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  color: var(--text-muted);
+  background-color: var(--background-secondary-alt);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-panel-entry {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-panel-content {
+  flex: 1 1;
+  min-height: 0;
+  padding: 10px;
+  overflow: auto;
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-panel-content > pre,
+.obsidian-vuepress-code-tree .vp-code-tree-panel-content .vp-code-tree-pre {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .obsidian-vuepress-code-tree .vp-code-tree-body {
+    flex-direction: column;
+    height: auto;
+    min-height: 320px;
+    max-height: none;
+  }
+
+  .obsidian-vuepress-code-tree .vp-code-tree-nav {
+    flex-basis: auto;
+    max-width: none;
+    max-height: 180px;
+    border-right: 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+  }
+}
+
+.vp-code-tree-hidden {
+  display: none !important;
+}
+
+.obsidian-vuepress-tabs {
+  margin: 1em 0;
+  overflow: hidden;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+}
+
+.obsidian-vuepress-tabs .vp-tabs-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 6px 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-vuepress-tabs .vp-tabs-tab {
+  position: relative;
+  min-height: 30px;
+  padding: 6px 12px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 6px 6px 0 0;
+  outline: none;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.obsidian-vuepress-tabs .vp-tabs-tab::after {
+  position: absolute;
+  right: 10px;
+  bottom: 0;
+  left: 10px;
+  height: 2px;
+  content: "";
+  background-color: transparent;
+  transition: background-color 150ms ease;
+}
+
+.obsidian-vuepress-tabs .vp-tabs-tab:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+.obsidian-vuepress-tabs .vp-tabs-tab.active {
+  color: var(--interactive-accent);
+  background-color: var(--background-secondary, #f5f7fa);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(60,132,247,0.06);
+  z-index: 2;
+  position: relative;
+}
+
+.obsidian-vuepress-tabs .vp-tabs-tab.active::after {
+  background-color: var(--interactive-accent);
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 1px 4px rgba(60,132,247,0.10);
+}
+
+.obsidian-vuepress-tabs .vp-tabs-body {
+  padding: 12px;
+}
+
+.obsidian-vuepress-tabs .vp-tabs-panel {
+  display: none;
+}
+
+.obsidian-vuepress-tabs .vp-tabs-panel.active {
+  display: block;
+}
+
+.obsidian-vuepress-tabs .vp-tabs-panel > :first-child {
+  margin-top: 0;
+}
+
+.obsidian-vuepress-tabs .vp-tabs-panel > :last-child {
+  margin-bottom: 0;
+}
+
+.vp-tabs-hidden {
+  display: none !important;
+}
+
+.obsidian-vuepress-steps {
+  margin: 16px 0;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) {
+  padding-inline-start: 0;
+  margin: 0;
+  list-style: none;
+  counter-reset: list-item;
+}
+
+.vp-steps > ol,
+.obsidian-vuepress-steps > ol {
+  display: block;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li {
+  position: relative;
+  min-height: 28px;
+  padding-left: 44px;
+  margin-bottom: 16px;
+  line-height: 28px;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+  color: var(--text-normal);
+  text-align: center;
+  content: counter(list-item);
+  background-color: var(--background-secondary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 100%;
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li:not(:last-of-type)::after {
+  position: absolute;
+  top: 34px;
+  bottom: -10px;
+  left: 14px;
+  width: 1px;
+  content: "";
+  background-color: var(--background-modifier-border);
+  transition: background-color 150ms ease;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li > :first-child {
+  margin-top: 0;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li > :first-child:where(h1, h2, h3, h4, h5, h6) {
+  padding-top: 0;
+  border-top: none;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li > :first-child:where(p) {
+  line-height: 28px;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li + li {
+  margin-top: 1px;
+}
+
+/* Step body: reset line-height from the 28px step header row so code blocks render normally */
+.obsidian-vuepress-steps > :where(ol, ul) > li :is(pre, .vp-code-block-title, code, .hljs) {
+  line-height: var(--line-height-normal, 1.5);
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li pre {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li .vp-code-block-title {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0;
+  white-space: normal;
+  word-break: normal;
+}
+
+.obsidian-vuepress-steps > :where(ol, ul) > li .vp-code-block-title pre {
+  margin: 0;
+  white-space: pre;
+  word-break: normal;
+}
+
+.obsidian-vuepress-steps .vp-code-block-title-bar {
+  display: flex;
+  align-items: center;
+}
+
+.obsidian-vuepress-steps .vp-code-block-title-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.obsidian-vuepress-steps .vp-code-block-title-icon {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+.vp-steps-hidden {
+  display: none !important;
+}
+
+.obsidian-vuepress-prompt-container {
+  margin: 16px 0;
+  padding: 12px 14px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 4px solid var(--interactive-accent);
+  border-radius: 8px;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-content {
+  margin-top: 8px;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-content > :first-child {
+  margin-top: 0;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-content > :last-child {
+  margin-bottom: 0;
+}
+
+.obsidian-vuepress-prompt-container.note {
+  border-left-color: var(--vp-prompt-note-border, #64748b);
+}
+
+.obsidian-vuepress-prompt-container.note .vp-custom-container-title {
+  color: var(--vp-prompt-note-title, #64748b);
+}
+
+.obsidian-vuepress-prompt-container.info {
+  border-left-color: var(--vp-prompt-info-border, #0284c7);
+}
+
+.obsidian-vuepress-prompt-container.info .vp-custom-container-title {
+  color: var(--vp-prompt-info-title, #0284c7);
+}
+
+.obsidian-vuepress-prompt-container.tip {
+  border-left-color: var(--vp-prompt-tip-border, #16a34a);
+}
+
+.obsidian-vuepress-prompt-container.tip .vp-custom-container-title {
+  color: var(--vp-prompt-tip-title, #16a34a);
+}
+
+.obsidian-vuepress-prompt-container.warning {
+  border-left-color: var(--vp-prompt-warning-border, #d97706);
+}
+
+.obsidian-vuepress-prompt-container.warning .vp-custom-container-title {
+  color: var(--vp-prompt-warning-title, #d97706);
+}
+
+.obsidian-vuepress-prompt-container.caution {
+  border-left-color: var(--vp-prompt-caution-border, #dc2626);
+}
+
+.obsidian-vuepress-prompt-container.caution .vp-custom-container-title {
+  color: var(--vp-prompt-caution-title, #dc2626);
+}
+
+details.obsidian-vuepress-prompt-container {
+  padding-bottom: 10px;
+  border-left-color: #64748b;
+}
+
+details.obsidian-vuepress-prompt-container > summary {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  list-style: none;
+}
+
+details.obsidian-vuepress-prompt-container > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.obsidian-vuepress-prompt-container > summary::before {
+  display: inline-block;
+  margin-right: 6px;
+  content: "▸";
+  transition: transform 120ms ease;
+}
+
+details.obsidian-vuepress-prompt-container[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.obsidian-vuepress-prompt-container .vp-custom-container-content {
+  margin-top: 10px;
+}
+
+.vp-prompt-hidden {
+  display: none !important;
+}
+
+/* ===== VPCollapse ===== */
+.obsidian-vuepress-collapse.vp-collapse {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-preamble {
+  margin-bottom: 4px;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-preamble > :first-child {
+  margin-top: 0;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-preamble > :last-child {
+  margin-bottom: 0;
+}
+
+.vp-card-wrapper .body > :first-child:where(.obsidian-vuepress-collapse.vp-collapse) > .vp-collapse-item:first-child {
+  padding-top: 0;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-item {
+  display: flex;
+  flex-direction: column;
+  padding-top: 16px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-vuepress-collapse .vp-collapse-item:first-child {
+  border-top: none;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-item[open] {
+  padding-bottom: 4px;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-header {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0;
+  list-style: none;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-header::-webkit-details-marker {
+  display: none;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-chevron {
+  align-self: baseline;
+  width: 20px;
+  height: 20px;
+  transition: transform 120ms ease;
+  transform: rotate(0deg);
+}
+
+.obsidian-vuepress-collapse .vp-collapse-item[open] .vp-collapse-chevron {
+  transform: rotate(90deg);
+}
+
+.obsidian-vuepress-collapse .vp-collapse-title {
+  flex: 1 2;
+  min-width: 0;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-title:empty {
+  display: none;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-content-inner {
+  padding-top: 12px;
+  padding-left: 24px;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-content-inner > *:first-child {
+  margin-top: 0;
+}
+
+.obsidian-vuepress-collapse .vp-collapse-content-inner > *:last-child {
+  margin-bottom: 0;
+}
+
+
+/* ===== VPCard / VPCardGrid / VPCardMasonry ===== */
+.vp-card-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background-color: var(--background-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  break-inside: avoid;
+}
+
+.vp-card-wrapper:hover {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.vp-card-wrapper > .title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
+  color: var(--text-normal);
+  line-height: 1.4;
+}
+
+.vp-card-wrapper > .title .vp-card-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2em;
+  height: 1.2em;
+  font-size: 1.2em;
+  color: var(--interactive-accent);
+}
+
+.vp-card-wrapper > .title img.vp-card-icon {
+  object-fit: contain;
+}
+
+.vp-card-wrapper > .title .vp-card-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vp-card-wrapper > .body {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.6;
+}
+
+.vp-card-wrapper > .body > :first-child {
+  margin-top: 0;
+}
+
+.vp-card-wrapper > .body > :last-child {
+  margin-bottom: 0;
+}
+
+.vp-card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .vp-card-grid {
+    grid-template-columns: repeat(var(--vp-card-grid-cols, 2), 1fr);
+    gap: 20px;
+  }
+}
+
+.vp-card-grid[style*="--vp-card-grid-cols"] {
+  grid-template-columns: repeat(var(--vp-card-grid-cols), 1fr);
+}
+
+.vp-card-masonry {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--vp-card-masonry-cols, 2), 1fr);
+  grid-gap: var(--vp-card-masonry-gap, 16px);
+  height: max-content;
+  margin: 0;
+  width: 100%;
+}
+
+/* In-document staging for masonry item render (not visible, keeps layout width) */
+.plume-masonry-staging {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.vp-card-masonry > .card-masonry-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.vp-card-masonry > .card-masonry-item > .vp-card-masonry-cell {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 !important;
+}
+
+.vp-card-masonry > .card-masonry-item > .vp-card-masonry-cell,
+.vp-card-masonry > .card-masonry-item > .vp-card-wrapper,
+.vp-card-masonry > .card-masonry-item > .vp-image-card,
+.vp-card-masonry > .card-masonry-item > .vp-card-masonry-cell > .vp-card-wrapper,
+.vp-card-masonry > .card-masonry-item > .vp-card-masonry-cell > .vp-image-card {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.vp-card-masonry .vp-card-wrapper,
+.vp-card-masonry .vp-image-card,
+.vp-card-masonry .vp-code-block-title {
+  margin-block: 0 !important;
+}
+
+.vp-card-grid > .vp-card-wrapper {
+  margin: 0 !important;
+  height: 100%;
+}
+
+.obsidian-vuepress-file-tree {
+  margin-block: 0;
+}
+
+.vp-card-masonry > .card-masonry-item > .vp-card-masonry-cell > img:only-child,
+.vp-card-masonry > .card-masonry-item > .vp-card-masonry-cell > a:only-child > img:only-child,
+.vp-card-masonry > .card-masonry-item > .vp-card-masonry-cell > p:only-child > img:only-child {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+
+/* ===== RepoCard ===== */
+.vp-repo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+  margin: 16px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+}
+
+.vp-repo-card:hover {
+  border-color: var(--interactive-accent);
+}
+
+.vp-repo-card p {
+  margin: 0;
+}
+
+.vp-repo-card .repo-name {
+  display: flex;
+  gap: 0 6px;
+  align-items: center;
+  max-width: 100%;
+  font-size: 14px;
+}
+
+.vp-repo-card .repo-provider-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-normal);
+}
+
+.vp-repo-card .repo-link {
+  flex: 1 2;
+  width: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-repo-card .repo-name a {
+  max-width: 100%;
+  font-weight: 600;
+  color: var(--text-accent);
+  text-decoration: none;
+}
+
+.vp-repo-card .repo-name a:hover {
+  color: var(--text-accent-hover);
+}
+
+.vp-repo-card .repo-visibility {
+  display: inline-block;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 22px;
+}
+
+.vp-repo-card .repo-visibility.archived {
+  color: var(--text-warning, var(--color-orange));
+  border-color: var(--text-warning, var(--color-orange));
+}
+
+.vp-repo-card .repo-desc {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.vp-repo-card .repo-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.vp-repo-card .repo-info p {
+  display: flex;
+  gap: 0 4px;
+  align-items: center;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.vp-repo-card .repo-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-normal);
+}
+
+.vp-repo-card .repo-language {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 100%;
+  background-color: var(--text-muted);
+}
+
+
+/* ===== LinkCard ===== */
+.vp-link-card {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 16px 20px;
+  margin: 16px 0;
+  background-color: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-s, 0 1px 2px rgba(0, 0, 0, 0.04));
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.vp-link-card:hover {
+  background-color: var(--background-secondary);
+  border-color: var(--interactive-accent);
+}
+
+.vp-link-card .body {
+  display: flex;
+  flex: 1 2;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+  width: 1px;
+}
+
+.vp-link-card .body > * {
+  margin: 0;
+}
+
+.vp-link-card .link {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: 100%;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-normal);
+  text-decoration: none !important;
+  cursor: pointer;
+}
+
+/* Whole-card click target — invisible overlay above the body content. */
+.vp-link-card .link::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: "";
+}
+
+.vp-link-card .link .text {
+  display: inline-block;
+  flex: 1 2;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.vp-link-card .vp-link-card-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-accent);
+}
+
+.vp-link-card .vp-link-card-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.vp-link-card .vp-link-card-arrow {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 2px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.vp-link-card:hover .vp-link-card-arrow {
+  transform: translateX(2px);
+  color: var(--interactive-accent);
+}
+
+
+/* ===== ImageCard ===== */
+.vp-image-card {
+  max-width: 100%;
+  margin: 16px 0;
+  border-radius: 8px;
+  box-shadow: var(--shadow-s, 0 1px 2px rgba(0, 0, 0, 0.06));
+  transition: box-shadow 0.2s ease;
+}
+
+.vp-image-card.center {
+  margin: 16px auto;
+}
+
+.vp-image-card:hover {
+  box-shadow: var(--shadow-l, 0 6px 16px rgba(0, 0, 0, 0.15));
+}
+
+.vp-image-card .image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 1;
+  border-radius: 8px;
+}
+
+.vp-image-card .image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vp-image-card .image-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 100%;
+  padding: 16px 20px 0;
+  overflow-y: hidden;
+  font-size: 14px;
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  transition: transform 0.25s ease;
+  transform: translateY(calc(100% - 60px));
+}
+
+.vp-image-card .image-info:hover {
+  transform: translateY(0);
+}
+
+.vp-image-card .image-info .title {
+  min-height: 28px;
+  margin: 0 0 16px;
+  overflow: hidden;
+  font-size: 18px;
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-image-card .image-info .title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.vp-image-card .image-info p {
+  margin: 0;
+  line-height: 24px;
+  color: #fff;
+}
+
+.vp-image-card .image-info p:last-child {
+  margin-bottom: 16px;
+}
+
+.vp-image-card .image-info .copyright {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.vp-image-card .image-info .copyright span:first-child {
+  flex: 1 2;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vp-image-card .image-info .description {
+  flex: 1 2;
+  height: 1px;
+  overflow-y: auto;
+}
+
+.vp-image-card .image-info .description::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+
+/* ===== Badge ===== */
+.vp-badge {
+  display: inline-block;
+  padding: 0 10px;
+  margin-left: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 22px;
+  vertical-align: middle;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+h1 .vp-badge,
+h2 .vp-badge,
+h3 .vp-badge,
+h4 .vp-badge,
+h5 .vp-badge,
+h6 .vp-badge {
+  margin: 0 0 0 4px;
+  vertical-align: middle;
+}
+
+h4 .vp-badge,
+h5 .vp-badge,
+h6 .vp-badge {
+  line-height: 18px;
+}
+
+.vp-badge.tip,
+ .vp-badge.note {
+  color: var(--text-on-accent, #fff);
+  background-color: var(--vp-badge-note-bg, var(--color-green, #3ba55c));
+  border-color: var(--vp-badge-note-border, var(--color-green, #3ba55c));
+}
+
+.vp-badge.info {
+  color: var(--text-on-accent, #fff);
+  background-color: var(--vp-badge-info-bg, var(--color-blue, #4f8cf7));
+  border-color: var(--vp-badge-info-border, var(--color-blue, #4f8cf7));
+}
+
+.vp-badge.warning {
+  color: var(--text-on-accent, #fff);
+  background-color: var(--vp-badge-warning-bg, var(--color-yellow, #d4a017));
+  border-color: var(--vp-badge-warning-border, var(--color-yellow, #d4a017));
+}
+
+.vp-badge.danger,
+ .vp-badge.important {
+  color: var(--text-on-accent, #fff);
+  background-color: var(--vp-badge-danger-bg, var(--color-red, #e0484c));
+  border-color: var(--vp-badge-danger-border, var(--color-red, #e0484c));
+}
+
+
+/* ===== Field / FieldGroup ===== */
+.vp-field {
+  width: 100%;
+  margin: 16px 0;
+  transition: border-color 0.2s ease;
+}
+
+.vp-field + .vp-field {
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.vp-field .field-meta {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0;
+}
+
+.vp-field .field-meta .name {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.vp-field.deprecated .field-meta .name {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.vp-field .field-meta .required,
+.vp-field .field-meta .optional,
+.vp-field .field-meta .deprecated {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1;
+  background-color: transparent;
+  border-radius: 8px;
+}
+
+.vp-field .field-meta .required {
+  color: var(--color-green, #3ba55c);
+  border: 1px solid var(--color-green, #3ba55c);
+}
+
+.vp-field .field-meta .optional {
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.vp-field .field-meta .deprecated {
+  color: var(--color-red, #e0484c);
+  border: 1px solid var(--color-red, #e0484c);
+}
+
+.vp-field .field-meta .type {
+  flex: 1 2;
+  text-align: right;
+}
+
+.vp-field .field-meta .type code {
+  font-size: 13px;
+}
+
+.vp-field .default-value {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  transform: translateY(-4px);
+}
+
+.vp-field .description :where(p, ul, ol) {
+  margin: 8px 0;
+  line-height: 24px;
+  color: var(--text-muted);
+}
+
+.vp-field-group {
+  padding: 0 20px;
+  margin: 16px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+
+
+/* ===== Flex ===== */
+.vp-flex,
+.obsidian-vuepress-flex {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  align-items: stretch;
+}
+
+.vp-flex > p {
+  margin: 0;
+}
+
+.vp-flex > .vp-flex-item,
+.vp-flex > :is(.table-wrapper, table) {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.vp-flex:not([style*="flex-direction: column"]) > .vp-flex-item,
+.vp-flex:not([style*="flex-direction: column"]) > :is(.table-wrapper, table) {
+  flex: 1 1 0;
+  max-width: 100%;
+}
+
+.vp-flex .table-wrapper,
+.vp-flex table {
+  width: 100%;
+}
+
+.vp-flex > .vp-flex-item > :first-child {
+  margin-top: 0;
+}
+
+.vp-flex > .vp-flex-item > :last-child {
+  margin-bottom: 0;
+}
+
+
+/* ===== Window ===== */
+.window-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 40px;
+  margin: 16px 0;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-s, 0 1px 3px rgba(0, 0, 0, 0.08));
+  overflow: hidden;
+}
+
+.window-wrapper .window-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  background-color: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.window-wrapper.has-title .window-header {
+  height: 36px;
+}
+
+.window-wrapper .window-left {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 5px 0 5px 8px;
+}
+
+.window-wrapper .window-left i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background-color: #ccc;
+  border-radius: 100%;
+}
+
+.window-wrapper .window-left i:nth-child(1) {
+  background-color: var(--color-red, #ff5f57);
+}
+
+.window-wrapper .window-left i:nth-child(2) {
+  background-color: var(--color-yellow, #febc2e);
+}
+
+.window-wrapper .window-left i:nth-child(3) {
+  background-color: var(--color-green, #28c840);
+}
+
+.window-wrapper .window-right {
+  width: 60px;
+  padding-right: 8px;
+}
+
+.window-wrapper .window-center {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.window-wrapper .window-title {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-width: 200px;
+  max-width: 100%;
+  padding: 0 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+
+@media (min-width: 640px) {
+  .window-wrapper .window-title {
+    min-width: 320px;
+  }
+}
+
+.window-wrapper .window-title span {
+  flex: 1;
+  max-width: 100%;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-wrapper .window-content {
+  height: var(--window-height, auto);
+  min-height: 0;
+  padding: var(--window-gap, 20px);
+  overflow: auto;
+  font-size: 14px;
+  line-height: 22px;
+  background-color: var(--background-primary);
+}
+
+.window-wrapper .window-content > img:only-child,
+.window-wrapper .window-content > p:only-child > img:only-child {
+  display: block;
+  width: 100%;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+
+/* ===== Chat ===== */
+.vp-chat {
+  width: 100%;
+  margin: 16px 0;
+  overflow: hidden;
+  background-color: var(--background-secondary);
+  border-radius: 8px;
+}
+
+@media (min-width: 640px) {
+  .vp-chat {
+    width: 360px;
+    margin: 16px auto;
+  }
+}
+
+@media (min-width: 960px) {
+  .vp-chat {
+    width: 480px;
+  }
+}
+
+.vp-chat .vp-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  background-color: var(--background-secondary-alt, var(--background-secondary));
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.vp-chat .vp-chat-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-normal);
+  text-align: center;
+}
+
+.vp-chat .vp-chat-content {
+  padding: 16px;
+}
+
+.vp-chat .vp-chat-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 0 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.vp-chat .vp-chat-message {
+  display: flex;
+  margin-bottom: 16px;
+}
+
+.vp-chat .vp-chat-message.self {
+  justify-content: flex-end;
+}
+
+.vp-chat .vp-chat-message:last-child {
+  margin-bottom: 0;
+}
+
+.vp-chat .vp-chat-message-body {
+  flex-shrink: 2;
+  min-width: 0;
+  max-width: calc(100% - 40px);
+  padding-right: 32px;
+}
+
+.vp-chat .vp-chat-message.self .vp-chat-message-body {
+  padding-right: 0;
+  padding-left: 32px;
+}
+
+.vp-chat .vp-chat-username {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.vp-chat .vp-chat-message-body .message-content {
+  max-width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+  border-radius: 8px;
+  box-shadow: var(--shadow-s, 0 1px 2px rgba(0, 0, 0, 0.06));
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.vp-chat .vp-chat-message.self .vp-chat-message-body .message-content {
+  color: var(--text-on-accent, var(--text-normal));
+  background-color: var(--interactive-accent);
+}
+
+.vp-chat .vp-chat-message.self .vp-chat-message-body .message-content :where(a, code) {
+  color: inherit;
+}
+
+.vp-chat .message-content :where(p, ul, ol) {
+  margin: 6px 0;
+}
+
+.vp-chat .message-content :first-child {
+  margin-top: 0;
+}
+
+.vp-chat .message-content :last-child {
+  margin-bottom: 0;
+}
+
+
+/* ===== VPTimeline ===== */
+.obsidian-vuepress-timeline.vp-timeline {
+  position: relative;
+  margin: 24px 0;
+  --vp-timeline-c-line: var(--background-modifier-border);
+  --vp-timeline-c-point: var(--background-modifier-border);
+  --vp-timeline-c-title: var(--text-normal);
+  --vp-timeline-c-text: var(--text-normal);
+  --vp-timeline-c-time: var(--text-muted);
+  --vp-timeline-c-icon: var(--background-primary);
+  --vp-timeline-bg-card: var(--background-secondary);
+}
+
+.obsidian-vuepress-timeline.vp-timeline.horizontal {
+  padding-bottom: 7px;
+  overflow-x: auto;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-box {
+  display: flex;
+  gap: 24px 36px;
+}
+
+.obsidian-vuepress-timeline.vp-timeline:not(.horizontal) .vp-timeline-box {
+  flex-direction: column;
+}
+
+.obsidian-vuepress-timeline.vp-timeline.horizontal .vp-timeline-box {
+  flex-direction: row;
+  width: max-content;
+}
+
+/* Item type color presets �� mapped to Obsidian theme vars */
+.obsidian-vuepress-timeline .vp-timeline-item.tip,
+.obsidian-vuepress-timeline .vp-timeline-item.info {
+  --vp-timeline-c-line: var(--color-accent, var(--interactive-accent));
+  --vp-timeline-c-point: var(--color-accent, var(--interactive-accent));
+  --vp-timeline-bg-card: var(--background-secondary);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.success {
+  --vp-timeline-c-line: var(--color-green);
+  --vp-timeline-c-point: var(--color-green);
+  --vp-timeline-bg-card: rgba(var(--color-green-rgb), 0.1);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.warning {
+  --vp-timeline-c-line: var(--color-yellow);
+  --vp-timeline-c-point: var(--color-yellow);
+  --vp-timeline-bg-card: rgba(var(--color-yellow-rgb), 0.1);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.danger {
+  --vp-timeline-c-line: var(--color-red);
+  --vp-timeline-c-point: var(--color-red);
+  --vp-timeline-bg-card: rgba(var(--color-red-rgb), 0.1);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.caution {
+  --vp-timeline-c-line: var(--color-orange);
+  --vp-timeline-c-point: var(--color-orange);
+  --vp-timeline-bg-card: rgba(var(--color-orange-rgb), 0.1);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.important {
+  --vp-timeline-c-line: var(--color-purple);
+  --vp-timeline-c-point: var(--color-purple);
+  --vp-timeline-bg-card: rgba(var(--color-purple-rgb), 0.1);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item {
+  position: relative;
+  display: flex;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).between {
+  width: calc(50% - 18px);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal {
+  padding-top: 36px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line {
+  position: absolute;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).placement-left {
+  justify-content: flex-start;
+  padding-left: 36px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).placement-right,
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).between {
+  justify-content: flex-end;
+  padding-right: 36px;
+  text-align: right;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal) > .vp-timeline-line {
+  top: 0;
+  bottom: 0;
+  width: 0;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal > .vp-timeline-line {
+  top: 12px;
+  right: 0;
+  left: 0;
+  height: 0;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).card > .vp-timeline-line {
+  top: 14px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).placement-left > .vp-timeline-line {
+  left: 12px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).placement-right > .vp-timeline-line,
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).between > .vp-timeline-line {
+  right: 12px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line::before {
+  position: absolute;
+  display: block;
+  content: "";
+  border: none;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal) > .vp-timeline-line::before {
+  top: 10px;
+  bottom: -48px;
+  border-left: 2px solid var(--vp-timeline-c-line);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal > .vp-timeline-line::before {
+  right: -46px;
+  left: 8px;
+  border-top: 2px solid var(--vp-timeline-c-line);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal):last-of-type > .vp-timeline-line::before {
+  bottom: 0 !important;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal:last-of-type > .vp-timeline-line::before {
+  right: 0 !important;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).line-dashed > .vp-timeline-line::before {
+  border-left-style: dashed;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).line-dotted > .vp-timeline-line::before {
+  border-left-style: dotted;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal.line-dashed > .vp-timeline-line::before {
+  border-top-style: dashed;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal.line-dotted > .vp-timeline-line::before {
+  border-top-style: dotted;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line .vp-timeline-point {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background-color: var(--vp-timeline-c-point);
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal) > .vp-timeline-line .vp-timeline-point {
+  top: 4px;
+  left: -7px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal > .vp-timeline-line .vp-timeline-point {
+  top: -7px;
+  left: 0;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line.has-icon .vp-timeline-point {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal) > .vp-timeline-line.has-icon .vp-timeline-point {
+  top: -1px;
+  left: -11px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal > .vp-timeline-line.has-icon .vp-timeline-point {
+  top: -11px;
+  left: 0;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line.has-icon .vp-timeline-point .vp-icon,
+.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line.has-icon .vp-timeline-point img.vp-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--vp-timeline-c-icon);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line.has-icon .vp-timeline-point svg {
+  width: 14px;
+  height: 14px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-container {
+  width: max-content;
+  max-width: 100%;
+  font-size: var(--font-ui-medium);
+  line-height: 1.5;
+  color: var(--vp-timeline-c-text);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.horizontal .vp-timeline-container {
+  max-width: 240px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).between-right .vp-timeline-container {
+  text-align: left;
+  transform: translateX(calc(100% + 48px));
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item.card .vp-timeline-content {
+  padding: 12px 16px;
+  background-color: var(--vp-timeline-bg-card);
+  border-radius: 6px;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-content :where(p, ul, ol) {
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-content > .vp-timeline-title {
+  margin: 0 0 8px;
+  font-size: var(--font-ui-medium);
+  font-weight: 700;
+  color: var(--vp-timeline-c-title);
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-content > .vp-timeline-title:empty {
+  display: none;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-content > .vp-timeline-title + * {
+  margin-top: 0 !important;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-content .vp-timeline-body > :first-child {
+  margin-top: 0;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-content .vp-timeline-body > :last-child {
+  margin-bottom: 0 !important;
+}
+
+.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-time {
+  margin: 4px 0 0;
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  color: var(--vp-timeline-c-time);
+}
+
+/* ===== VPTimeline — between mode collapses to single column on narrow screens (mirrors VuePress useMediaQuery 639px) ===== */
+@media (max-width: 639px) {
+  .obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).between {
+    width: 100%;
+    padding-right: 0;
+    padding-left: 36px;
+    text-align: left;
+    justify-content: flex-start;
+  }
+
+  .obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).between > .vp-timeline-line {
+    right: auto;
+    left: 12px;
+  }
+
+  .obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).between-right .vp-timeline-container {
+    text-align: left;
+    transform: none;
+  }
+}
+
+/* ===== VPCollapse — subtle fade/slide animation on open (GPU compositor only, no layout cost) ===== */
+@media (prefers-reduced-motion: no-preference) {
+  .obsidian-vuepress-collapse .vp-collapse-item[open] > .vp-collapse-content {
+    animation: vp-collapse-fade 180ms ease;
+  }
+}
+
+@keyframes vp-collapse-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ===== Prompt container — type icon prepended to title ===== */
+.obsidian-vuepress-prompt-container .vp-custom-container-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  color: currentColor;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-icon > svg {
+  width: 14px;
+  height: 14px;
+}
+
+details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon {
+  margin-right: 4px;
+}
+
+/* ===== Tabs — narrow screen full-bleed layout (mirrors VuePress 419px breakpoint) ===== */
+@media (max-width: 419px) {
+  .obsidian-vuepress-tabs {
+    border-radius: 6px;
+  }
+
+  .obsidian-vuepress-tabs .vp-tabs-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .obsidian-vuepress-tabs .vp-tabs-tab {
+    flex: 0 0 auto;
+  }
+}
+
+
+
+
+/* ============================================================================
+ * Code Block Title (``` ts title="foo.ts")  &  Code Tabs (:::code-tabs)
+ * Parity with vuepress-theme-plume code.css / CodeTabs.vue, simplified for
+ * Obsidian's pre/code DOM and our shared ft-icon icon host (already styled).
+ * ============================================================================ */
+
+.vp-code-block-title {
+  position: relative;
+  margin: 16px 0;
+}
+
+.vp-code-block-title > pre {
+  margin-top: 0 !important;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.vp-code-block-title-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background-color: var(--code-background, var(--background-secondary));
+  border-radius: 6px 6px 0 0;
+  box-shadow: inset 0 -1px var(--background-modifier-border);
+}
+
+.vp-code-block-title-text {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+.vp-code-block-title-text::before {
+  position: absolute;
+  right: 4px;
+  bottom: 0;
+  left: 4px;
+  display: inline-block;
+  height: 2px;
+  content: "";
+  background-color: var(--interactive-accent);
+  border-radius: 2px;
+}
+
+.vp-code-block-title-icon {
+  position: relative;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.vp-code-block-title-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.vp-code-block-title-icon.ft-icon-offline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vp-code-block-title-icon.ft-icon-offline > svg {
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+}
+
+/* File-type tint classes (shared with file-tree; required for code-block title icons) */
+.vp-code-block-title-icon.ft-color-folder {
+  color: #ca8a04;
+}
+
+.vp-code-block-title-icon.ft-color-src {
+  color: #0ea5e9;
+}
+
+.vp-code-block-title-icon.ft-color-docs {
+  color: #22c55e;
+}
+
+.vp-code-block-title-icon.ft-color-scripts,
+.vp-code-block-title-icon.ft-color-code,
+.vp-code-block-title-icon.ft-color-typescript,
+.vp-code-block-title-icon.ft-color-javascript,
+.vp-code-block-title-icon.ft-color-vue {
+  color: #38bdf8;
+}
+
+.vp-code-block-title-icon.ft-color-config,
+.vp-code-block-title-icon.ft-color-json {
+  color: #22d3ee;
+}
+
+.vp-code-block-title-icon.ft-color-markdown,
+.vp-code-block-title-icon.ft-color-markup {
+  color: #34d399;
+}
+
+.vp-code-block-title-icon.ft-color-terminal,
+.vp-code-block-title-icon.ft-color-scripts {
+  color: #4ade80;
+}
+
+.vp-code-block-title-icon.ft-color-default {
+  color: var(--text-muted);
+}
+
+/* Code Tabs ---------------------------------------------------------------- */
+
+.obsidian-vuepress-code-tabs {
+  margin: 16px 0;
+  border-radius: 6px;
+  background-color: var(--code-background, var(--background-secondary));
+  overflow: hidden;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tabs-nav {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 0 8px;
+  background-color: transparent;
+  box-shadow: inset 0 -1px var(--background-modifier-border);
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab-nav {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 40px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab-nav:hover {
+  color: var(--text-normal);
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab-nav.active {
+  color: var(--interactive-accent);
+  background-color: var(--background-secondary, #f5f7fa);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(60,132,247,0.06);
+  z-index: 2;
+  position: relative;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab-nav.active::after {
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 3px;
+  content: "";
+  background-color: var(--interactive-accent);
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 1px 4px rgba(60,132,247,0.10);
+  background-color: var(--interactive-accent);
+  border-radius: 2px;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab {
+  display: none;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab.active {
+  display: block;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab > pre {
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Strip the title-bar inside code-tabs panels — the tab nav already shows the
+ * filename, so the duplicate would be visual noise. */
+.obsidian-vuepress-code-tabs .vp-code-tab .vp-code-block-title > .vp-code-block-title-bar {
+  display: none;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tab .vp-code-block-title > pre {
+  border-radius: 0 !important;
+}

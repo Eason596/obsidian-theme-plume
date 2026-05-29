@@ -1979,7 +1979,9 @@ function applyFlexLayoutStyles(wrapper: HTMLElement, attrs: FlexContainerAttrs):
 /** Lift table nodes out of single-child wrappers so flex can size them. */
 function hoistFlexTableNodes(root: HTMLElement): void {
   for (const p of Array.from(root.querySelectorAll(":scope > p"))) {
-    const tableNode = p.querySelector(":scope > .table-wrapper, :scope > table");
+    const tableNode =
+      p.querySelector(":scope > .table-wrapper")
+      ?? p.querySelector(":scope > table");
     if (!tableNode) {
       continue;
     }
@@ -1991,6 +1993,9 @@ function hoistFlexTableNodes(root: HTMLElement): void {
 
   for (const child of Array.from(root.children)) {
     if (!(child instanceof HTMLElement) || child.classList.contains("vp-flex-item")) {
+      continue;
+    }
+    if (child.tagName === "TABLE") {
       continue;
     }
     if (child.childElementCount === 1) {
@@ -2372,7 +2377,7 @@ async function renderTimelineBlock(
     titleEl.className = "vp-timeline-title";
     const titleText = item.titleLines.join(" ").trim();
     if (titleText) {
-      await renderInlineMarkdownInto(titleEl, titleText, ctx);
+      await renderInlineMarkdownInto(titleEl, titleText, ctx, { phrasingOnly: true });
     }
     contentEl.appendChild(titleEl);
 

@@ -78,6 +78,18 @@ export async function renderPlumeBlocksInto(
   }
 }
 
+async function renderMarkdownInto(
+  container: HTMLElement,
+  markdown: string,
+  ctx: BlockRenderContext
+): Promise<void> {
+  if (ctx.renderMarkdown) {
+    await ctx.renderMarkdown(container, markdown);
+    return;
+  }
+  await renderPlumeMarkdown(container, markdown, toPlumeMarkdownContext(ctx));
+}
+
 export async function renderNestedMarkdownContent(
   container: HTMLElement,
   markdown: string,
@@ -121,7 +133,7 @@ export async function renderInnerMarkdown(
   const blocks = parseAllBlocks(source, ctx.defaultIconMode);
 
   if (blocks.length === 0) {
-    await renderPlumeMarkdown(container, markdown, toPlumeMarkdownContext(ctx));
+    await renderMarkdownInto(container, markdown, ctx);
     decorateCodeBlockTitles(container, scanCodeFenceTitles(markdown), ctx.defaultIconMode);
     pruneEmptyMarkdownNodes(container);
     return;
@@ -161,7 +173,7 @@ export async function renderInnerMarkdown(
 
   container.empty();
   const renderedMarkdown = out.join("\n");
-  await renderPlumeMarkdown(container, renderedMarkdown, toPlumeMarkdownContext(ctx));
+  await renderMarkdownInto(container, renderedMarkdown, ctx);
   decorateCodeBlockTitles(container, scanCodeFenceTitles(renderedMarkdown), ctx.defaultIconMode);
 
   const placeholders = Array.from(

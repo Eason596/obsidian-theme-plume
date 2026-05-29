@@ -8,6 +8,7 @@ export interface BlockRenderContext {
   component: Component;
   postProcessorCtx?: MarkdownPostProcessorContext;
   defaultIconMode: FileTreeIconMode;
+  renderMarkdown?: (container: HTMLElement, markdown: string) => Promise<void>;
   /** Resolve a @[code-tree](path) embed into a flat list of CodeTreeFileItem. */
   resolveCodeTreeEmbed?: (
     sourcePath: string,

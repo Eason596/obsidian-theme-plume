@@ -48,18 +48,33 @@ export async function renderInlineMarkdownInto(
   const temp = document.createElement("div");
   await renderInnerMarkdown(temp, text, ctx);
 
-  if (options?.phrasingOnly) {
-    host.empty();
+  const phrasingHost =
+    options?.phrasingOnly === true
+    || host.tagName === "P"
+    || host.tagName === "SPAN";
+
+  host.empty();
+
+  if (phrasingHost) {
     for (const node of Array.from(temp.childNodes)) {
       appendPhrasingFromRendered(host, node);
     }
     return;
   }
 
-  if (temp.childNodes.length === 1 && temp.firstChild instanceof HTMLParagraphElement) {
-    const p = temp.firstChild;
-    while (p.firstChild) host.appendChild(p.firstChild);
-  } else {
-    while (temp.firstChild) host.appendChild(temp.firstChild);
+  const elementChildren = Array.from(temp.children).filter(
+    (node): node is HTMLElement => node instanceof HTMLElement
+  );
+
+  if (elementChildren.length === 1 && elementChildren[0].tagName === "P") {
+    const paragraph = elementChildren[0];
+    while (paragraph.firstChild) {
+      host.appendChild(paragraph.firstChild);
+    }
+    return;
+  }
+
+  while (temp.firstChild) {
+    host.appendChild(temp.firstChild);
   }
 }
