@@ -920,6 +920,11 @@ details.obsidian-vuepress-prompt-container .vp-custom-container-content {
   color: var(--interactive-accent);
 }
 
+.vp-card-wrapper > .title .vp-card-icon svg {
+  width: 1.2em;
+  height: 1.2em;
+}
+
 .vp-card-wrapper > .title img.vp-card-icon {
   object-fit: contain;
 }

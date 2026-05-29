@@ -21,7 +21,19 @@ await esbuild.build({
   logLevel: "info"
 });
 
-const run = spawnSync(process.execPath, [outfile], { stdio: "inherit", cwd: root });
+const run = spawnSync(process.execPath, [outfile], {
+  stdio: "inherit",
+  cwd: root,
+  env: {
+    ...process.env,
+    NODE_OPTIONS: [
+      process.env.NODE_OPTIONS,
+      "--max-old-space-size=4096"
+    ]
+      .filter(Boolean)
+      .join(" ")
+  }
+});
 if (run.status !== 0) {
   process.exit(run.status ?? 1);
 }

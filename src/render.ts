@@ -1,6 +1,7 @@
-import { App, Component, MarkdownPostProcessorContext, Notice, requestUrl, setIcon } from "obsidian";
+import { App, Component, type IconName, MarkdownPostProcessorContext, Notice, requestUrl, setIcon } from "obsidian";
 import { renderPlumeMarkdown, type PlumeMarkdownContext } from "./markdown/plume-markdown";
 import { resolveNodeIcon } from "./icons";
+import { lookupOfflineIconSvg } from "./offlineIconify";
 import { registerBlockRenderer } from "./render/block-registry";
 import { renderCollapseBlock } from "./render/blocks/collapse";
 import {
@@ -950,30 +951,66 @@ export function renderStepsInto(container: HTMLElement, options: RenderStepsOpti
 // Unified block rendering pipeline
 // ===========================================================================
 
+/** Collect masonry cells via Plume block renderers, or markdown for bare code fences. */
+export async function gatherMasonryItems(
+  content: string,
+  ctx: BlockRenderContext
+): Promise<HTMLElement[]> {
+  const trimmed = content.replace(/^\n+|\n+$/g, "");
+  if (!trimmed) {
+    return [];
+  }
+
+  const blocks = parseAllBlocks(trimmed, ctx.defaultIconMode);
+
+  if (blocks.length > 0) {
+    const staging = document.createElement("div");
+    staging.className = "plume-masonry-staging";
+    if (document.body) {
+      document.body.appendChild(staging);
+    }
+    try {
+      await renderPlumeBlocksInto(staging, blocks, ctx);
+      const plumeItems = collectMasonryItems(staging);
+      if (plumeItems.length > 0) {
+        return plumeItems;
+      }
+    } finally {
+      staging.remove();
+    }
+  }
+
+  const staging = document.createElement("div");
+  staging.className = "plume-masonry-staging";
+  if (document.body) {
+    document.body.appendChild(staging);
+  }
+  try {
+    await renderInnerMarkdown(staging, trimmed, ctx);
+    return collectMasonryItems(staging);
+  } finally {
+    staging.remove();
+  }
+}
+
 async function buildMasonryItems(
   content: string,
   wrapper: HTMLElement,
   ctx: BlockRenderContext
 ): Promise<HTMLElement[]> {
-  const blocks = parseAllBlocks(content, ctx.defaultIconMode);
-
-  if (blocks.length > 0 && contentIsOnlyBlocksAndBlankLines(content, blocks)) {
-    const staging = document.createElement("div");
-    staging.className = "plume-masonry-staging";
-    wrapper.appendChild(staging);
-    await renderPlumeBlocksInto(staging, blocks, ctx);
-    const items = collectMasonryItems(staging);
-    staging.remove();
-    return items;
+  const items = await gatherMasonryItems(content, ctx);
+  if (items.length === 0) {
+    return [];
   }
-
   const staging = document.createElement("div");
   staging.className = "plume-masonry-staging";
   wrapper.appendChild(staging);
-  await renderInnerMarkdown(staging, content, ctx);
-  const items = collectMasonryItems(staging);
+  for (const item of items) {
+    staging.appendChild(item);
+  }
+  const collected = collectMasonryItems(staging);
   staging.remove();
-  return items;
+  return collected;
 }
 
 interface NormalizedTabsAttrs extends TabsContainerAttrs {}
@@ -2418,14 +2455,41 @@ function applyInlineIcon(host: HTMLElement, icon: string, className: string): vo
     host.appendChild(img);
     return;
   }
+  if (trimmed.includes(":")) {
+    const offlineSvg = lookupOfflineIconSvg(trimmed);
+    if (offlineSvg) {
+      const span = document.createElement("span");
+      span.className = `${className} ft-icon-offline`;
+      span.setAttribute("aria-hidden", "true");
+      span.innerHTML = offlineSvg;
+      host.appendChild(span);
+      return;
+    }
+  }
   const span = document.createElement("span");
   span.className = className;
   span.setAttribute("aria-hidden", "true");
   host.appendChild(span);
-  try {
-    setIcon(span, trimmed);
-  } catch {
-    span.textContent = trimmed;
+  paintObsidianIcon(span, trimmed);
+}
+
+/** Obsidian `setIcon` only renders when the target node is connected to the document. */
+function paintObsidianIcon(span: HTMLElement, iconId: string): void {
+  const apply = (): void => {
+    if (!span.isConnected) {
+      return;
+    }
+    span.empty();
+    try {
+      setIcon(span, iconId as IconName);
+    } catch {
+      /* Unknown icon id: leave empty (do not substitute a generic fallback). */
+    }
+  };
+  if (span.isConnected) {
+    apply();
+  } else {
+    requestAnimationFrame(apply);
   }
 }
 

@@ -156,9 +156,24 @@
     const fromColumns = Array.from(
       wrapper.querySelectorAll(":scope > .card-masonry-item > .vp-card-masonry-cell")
     );
-    const items = cells.length > 0 ? cells : fromColumns;
+    const loose = Array.from(
+      wrapper.querySelectorAll(
+        ":scope > .vp-card-wrapper, :scope > .vp-image-card, :scope > .vp-code-block-title, :scope > pre"
+      )
+    );
+    let items = cells.length > 0 ? cells : fromColumns;
+    if (items.length === 0) {
+      items = loose;
+    }
 
     if (items.length === 0) {
+      return;
+    }
+
+    const looksLikeRawContainer = items.some(
+      (el) => el.tagName === "P" && (el.textContent ?? "").includes(":::")
+    );
+    if (looksLikeRawContainer) {
       return;
     }
 
@@ -217,6 +232,34 @@
     }
   }
 
+  /** Copy markdown source from demo section panels */
+  function initDemoSourceCopy() {
+    document.querySelectorAll(".demo-copy-source").forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) return;
+      if (button.dataset.demoSourceCopyBound === "1") return;
+      button.dataset.demoSourceCopyBound = "1";
+
+      button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const panel = button.closest(".demo-source-panel");
+        const pre = panel?.querySelector(".demo-source-pre");
+        const text = pre?.dataset.rawSource ?? pre?.querySelector("code")?.textContent ?? "";
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          const prev = button.textContent;
+          button.textContent = "已复制";
+          setTimeout(() => {
+            button.textContent = prev;
+          }, 1200);
+        } catch {
+          /* ignore */
+        }
+      });
+    });
+  }
+
   /** Copy file-tree text */
   function initCopyButtons() {
     document.querySelectorAll(".obsidian-file-tree-copy").forEach((button) => {
@@ -254,6 +297,49 @@
     });
   }
 
+  /** Highlight sidebar link for the section in view */
+  function initSidebarNav() {
+    const links = Array.from(
+      document.querySelectorAll(".demo-sidebar-nav a[data-section-id]")
+    );
+    if (links.length === 0) return;
+
+    const sections = links
+      .map((link) => {
+        const id = link.dataset.sectionId;
+        const el = id ? document.getElementById(id) : null;
+        return el ? { link, el } : null;
+      })
+      .filter(Boolean);
+
+    if (sections.length === 0) return;
+
+    const setActive = (id) => {
+      for (const { link } of sections) {
+        link.classList.toggle("is-active", link.dataset.sectionId === id);
+      }
+    };
+
+    const sync = () => {
+      const offset = 100;
+      let current = sections[0].link.dataset.sectionId;
+      for (const { link, el } of sections) {
+        const top = el.getBoundingClientRect().top;
+        if (top <= offset) {
+          current = link.dataset.sectionId;
+        }
+      }
+      setActive(current);
+    };
+
+    sync();
+    window.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("hashchange", () => {
+      const hash = decodeURIComponent(location.hash.replace(/^#/, ""));
+      if (hash) setActive(hash);
+    });
+  }
+
   function boot() {
     initFileTreeFolders();
     initCodeTrees();
@@ -261,6 +347,8 @@
     initCollapseAccordion();
     initCardMasonry();
     initCopyButtons();
+    initDemoSourceCopy();
+    initSidebarNav();
   }
 
   onReady(boot);

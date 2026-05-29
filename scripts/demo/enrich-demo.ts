@@ -1,7 +1,12 @@
 import { parseAllBlocks, parseCodeTreeRawContent } from "../../src/parser";
+import { gatherMasonryItems } from "../../src/render";
+import type { BlockRenderContext } from "../../src/render/context";
 import type { CodeTreeFileItem, ParsedBlock } from "../../src/types";
 import { renderDemoMarkdown } from "./demo-markdown";
-import { resolveCodeTreeEmbedFromDisk } from "./fs-embed";
+import {
+  type CodeTreeEmbedLimits,
+  resolveCodeTreeEmbedFromDisk
+} from "./fs-embed";
 
 function parseColsAttr(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -61,41 +66,50 @@ function layoutMasonry(wrapper: HTMLElement, items: HTMLElement[], gap: number, 
   }
 }
 
-async function collectMasonryItems(
-  content: string,
-  renderMarkdown: (el: HTMLElement, md: string) => Promise<void>
-): Promise<HTMLElement[]> {
-  const staging = document.createElement("div");
-  staging.style.width = "880px";
-  document.body.appendChild(staging);
-  await renderMarkdown(staging, content);
-  const items = Array.from(staging.children).filter(
-    (node): node is HTMLElement => node instanceof HTMLElement
-  );
-  staging.remove();
-  return items;
+/** True when masonry already has real Plume cells (not marked `::: card` text). */
+function masonryHasPlumeItems(wrapper: HTMLElement): boolean {
+  if (
+    wrapper.querySelector(
+      ".card-masonry-item .vp-card-wrapper, .card-masonry-item .vp-image-card, .card-masonry-item .vp-code-block-title"
+    )
+  ) {
+    return true;
+  }
+  const loose = wrapper.querySelector(":scope > .vp-card-wrapper, :scope > .vp-image-card");
+  if (loose) {
+    return true;
+  }
+  const bad = wrapper.querySelector("p.vp-card-masonry-cell");
+  return !bad && Boolean(wrapper.querySelector(".card-masonry-item pre code"));
 }
 
 async function resolveCodeTreeFiles(
   block: ParsedBlock,
   repoRoot: string,
-  sourcePath: string
+  sourcePath: string,
+  embedLimits?: CodeTreeEmbedLimits
 ): Promise<CodeTreeFileItem[]> {
   if (block.type === "code-tree") {
     return parseCodeTreeRawContent(block.rawContent);
   }
   if (block.type === "code-tree-embed") {
     const dirPath = (block.attrs as { dirPath?: string }).dirPath ?? "";
-    return (await resolveCodeTreeEmbedFromDisk(repoRoot, sourcePath, dirPath)) ?? [];
+    return (
+      (await resolveCodeTreeEmbedFromDisk(repoRoot, sourcePath, dirPath, embedLimits)) ?? []
+    );
   }
   return [];
 }
+
+const DEMO_TEMPLATE_MAX_CHARS = 32_000;
 
 export async function enrichDemoPage(
   container: HTMLElement,
   markdown: string,
   repoRoot: string,
-  sourcePath: string
+  sourcePath: string,
+  embedLimits?: CodeTreeEmbedLimits,
+  ctx?: BlockRenderContext
 ): Promise<void> {
   const blocks = parseAllBlocks(markdown, "colored");
   const codeTreeBlocks = blocks.filter(
@@ -110,7 +124,7 @@ export async function enrichDemoPage(
       continue;
     }
 
-    const files = await resolveCodeTreeFiles(block, repoRoot, sourcePath);
+    const files = await resolveCodeTreeFiles(block, repoRoot, sourcePath, embedLimits);
     if (files.length === 0) {
       continue;
     }
@@ -124,14 +138,22 @@ export async function enrichDemoPage(
       const tpl = document.createElement("div");
       tpl.className = "demo-code-tree-template";
       tpl.dataset.path = file.filepath;
+      const body =
+        file.content.length > DEMO_TEMPLATE_MAX_CHARS
+          ? `${file.content.slice(0, DEMO_TEMPLATE_MAX_CHARS)}\n\n… (demo build 截断)`
+          : file.content;
       await renderDemoMarkdown(
         tpl,
-        `\`\`\`${file.language || "text"}\n${file.content}\n\`\`\``
+        `\`\`\`${file.language || "text"}\n${body}\n\`\`\``
       );
       templates.appendChild(tpl);
     }
 
     tree.appendChild(templates);
+  }
+
+  if (!ctx) {
+    return;
   }
 
   const masonryBlocks = blocks.filter((b) => b.type === "card-masonry");
@@ -144,14 +166,13 @@ export async function enrichDemoPage(
       continue;
     }
 
-    const hasCells = wrapper.querySelector(".vp-card-masonry-cell, .card-masonry-item");
-    if (hasCells) {
+    if (masonryHasPlumeItems(wrapper)) {
       continue;
     }
 
     const gap = Number.parseInt((block.attrs as { gap?: string }).gap ?? "16", 10) || 16;
     const cols = parseColsAttr((block.attrs as { cols?: string }).cols);
-    const items = await collectMasonryItems(block.rawContent, renderDemoMarkdown);
+    const items = await gatherMasonryItems(block.rawContent, ctx);
     if (items.length === 0) {
       continue;
     }

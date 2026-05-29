@@ -556,6 +556,13 @@ function resolveOfflineSvgWithFallback(icon: string | readonly string[] | undefi
   return name ? getOfflineIconSvgMap()[name] : undefined;
 }
 
+/** Lookup a pre-bundled Iconify id (e.g. `logos:github-icon`) for inline icons on cards, link-cards, etc. */
+export function lookupOfflineIconSvg(iconId: string): string | undefined {
+  const key = iconId.trim();
+  if (!key) return undefined;
+  return getOfflineIconSvgMap()[key];
+}
+
 export function resolveOfflineIconSvg(fileName: string, nodeType: "folder" | "file", expanded: boolean): string | undefined {
   const normalizedPath = fileName.replace(/\\/g, "/").toLowerCase();
   const baseName = pickBaseName(normalizedPath);

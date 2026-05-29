@@ -64,7 +64,7 @@ npm run build
 | 选项卡 | `::: tabs` / `::: code-tabs` | 面板以 `@tab` / `@tab:active` 分隔；可用 `::: tabs#id` 或 `id="..."` |
 | 步骤 | `::: steps` 或 `:::: steps` | 正文为 `1.` / `2.` 编号列表；Obsidian 内用自定义 `<ol>` 渲染，避免列表内 `:::` 被破坏 |
 | 提示 | `::: note` / `info` / `tip` / `warning` / `caution` / `details` | 可选自定义标题 |
-| 卡片 | `::: card` / `card-grid` / `card-masonry` | |
+| 卡片 | `::: card` / `card-grid` / `card-masonry` | `icon=` 为 Obsidian Lucide 名或图片 URL；不支持 `twemoji:` |
 | 折叠 | `::: collapse` | 列表项为面板；支持 `accordion`、`expand` |
 | 外链卡片 | `::: repo-card` / `link-card` / `image-card` | `repo-card` 会请求 GitHub / Gitee API（需网络） |
 | 布局 | `::: field` / `field-group` / `flex` / `window` / `chat` | |
@@ -183,6 +183,10 @@ npm run build:demo     # 生成 docs/index.html（GitHub Pages 预览）
 npm install
 npm run build:demo
 ```
+
+构建成功时终端会打印 `Wrote .../docs/index.html`。用浏览器直接打开该文件即可本地预览（`file://` 路径）。
+
+若进程以 `JavaScript heap out of memory` 退出，说明 `@[code-tree]` 嵌入了过大目录；示例已改为 `../src`，构建脚本也会跳过 `main.js`、`offlineIconData.ts` 等大文件。
 
 输出目录 `docs/`：
 

@@ -74,6 +74,29 @@ hi
     expect((block!.attrs as { id?: string }).id).toBe("install-tabs");
   });
 
+  it("parses card-grid nested card icon attrs", () => {
+    const md = `:::: card-grid
+
+::: card title="卡片标题 1" icon="smile"
+
+content one
+:::
+
+::: card title="卡片标题 2" icon="sparkles"
+
+content two
+:::
+
+::::`;
+    const grid = parseAllBlocks(md)[0];
+    expect(grid?.type).toBe("card-grid");
+    const cards = parseAllBlocks(grid!.rawContent).filter((b) => b.type === "card");
+    expect(cards).toHaveLength(2);
+    expect((cards[0].attrs as { icon?: string }).icon).toBe("smile");
+    expect((cards[1].attrs as { icon?: string }).icon).toBe("sparkles");
+    expect(contentIsOnlyBlocks(grid!.rawContent, cards)).toBe(true);
+  });
+
   it("parses collapse preamble before list items", () => {
     const withIntro = `Intro paragraph.
 

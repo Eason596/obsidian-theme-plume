@@ -23,10 +23,17 @@ const DEFAULT_FOLDER_COLOR = "ft-color-folder";
 let availableIconSet: Set<string> | null = null;
 
 function ensureIconSet(): Set<string> {
-  if (!availableIconSet) {
-    availableIconSet = new Set(getIconIds() as string[]);
+  const ids = getIconIds() as string[];
+  // First call can run before Obsidian finishes registering icons; don't cache an empty set.
+  if (!availableIconSet || (availableIconSet.size === 0 && ids.length > 0)) {
+    availableIconSet = new Set(ids);
   }
   return availableIconSet;
+}
+
+/** Pick a known Obsidian icon id from candidates (file-tree helpers). */
+export function resolveObsidianIcon(icon: string, fallback: IconName = "file"): IconName {
+  return safeIcon(icon as IconName, fallback);
 }
 
 function safeIcon(icon: IconName | IconName[] | undefined, fallback: IconName): IconName {

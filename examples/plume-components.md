@@ -1,326 +1,281 @@
 ---
 title: Obsidian Plume 组件示例
-description: 各 Plume 容器语法的初版示例，可在阅读视图中逐项对照完善
+description: 对照上游 Plume 示例整理的容器语法验收稿，可在阅读视图中逐项检查
 ---
 
 # Obsidian Plume 组件示例
 
-在 Obsidian **阅读模式**打开本页，并启用 **Obsidian Plume** 插件。每个小节对应一种（或一组）容器语法，可按需增删改。
+在 Obsidian **阅读模式**打开本页，并启用 **Obsidian Plume** 插件。内容与仓库根目录 [`示例.md`](../../示例.md) 对齐，并按 Obsidian 环境做了路径与图标说明。
 
-> 路径说明：本文件位于 `examples/`，`@[code-tree]` 示例使用相对路径 `../src` 指向插件源码目录。
+> **源码在哪？** 本文件即 Markdown 原文。在线预览站每节上方有 **Markdown 源码** 面板；Obsidian 中请用 **编辑模式** 查看 `:::` 围栏块。
+
+> **路径**：本文件位于 `examples/`。`@[code-tree]` 使用 `..` 指向插件根目录；库内其它路径请改成你的文件夹名。
 
 ---
 
 ## 目录
 
-1. [文件树 file-tree](#1-文件树-file-tree)
-2. [代码树 code-tree](#2-代码树-code-tree)
-3. [目录嵌入 @[code-tree]](#3-目录嵌入-code-tree)
-4. [选项卡 tabs](#4-选项卡-tabs)
-5. [代码选项卡 code-tabs](#5-代码选项卡-code-tabs)
-6. [步骤 steps](#6-步骤-steps)
-7. [提示容器 prompt](#7-提示容器-prompt)
-8. [卡片 card](#8-卡片-card)
-9. [卡片网格 card-grid](#9-卡片网格-card-grid)
-10. [瀑布流 card-masonry](#10-瀑布流-card-masonry)
-11. [折叠 collapse](#11-折叠-collapse)
-12. [仓库卡片 repo-card](#12-仓库卡片-repo-card)
-13. [链接卡片 link-card](#13-链接卡片-link-card)
-14. [图片卡片 image-card](#14-图片卡片-image-card)
-15. [字段 field / field-group](#15-字段-field--field-group)
-16. [弹性布局 flex](#16-弹性布局-flex)
-17. [窗口 window](#17-窗口-window)
-18. [对话 chat](#18-对话-chat)
-19. [时间线 timeline](#19-时间线-timeline)
-20. [行内徽章 badge](#20-行内徽章-badge)
-21. [代码块标题 title](#21-代码块标题-title)
-22. [围栏代码块 file-tree](#22-围栏代码块-file-tree)
+> **Obsidian**：下方列表可点击跳转。**GitHub Pages 预览**使用左侧固定目录栏。
+
+- [提示容器](#1-提示容器-prompt)
+- [步骤 steps](#2-步骤--steps)
+- [文件树 file-tree](#3-文件树--file-tree)
+- [代码树 code-tree](#4-代码树--code-tree)
+- [目录嵌入 @[code-tree]](#5-目录嵌入-code-tree)
+- [字段 field / field-group](#6-字段-field--field-group)
+- [选项卡 tabs](#7-选项卡--tabs)
+- [代码选项卡 code-tabs](#8-代码选项卡--code-tabs)
+- [时间线 timeline](#9-时间线--timeline)
+- [弹性布局 flex](#10-弹性布局--flex)
+- [折叠 collapse](#11-折叠--collapse)
+- [对话 chat](#12-对话--chat)
+- [代码块标题 title](#13-代码块标题-title)
+- [行内徽章 badge](#14-行内徽章-badge)
+- [卡片 card / card-grid](#15-卡片--card)
+- [链接卡片 link-card](#16-链接卡片--link-card)
+- [图片卡片 image-card](#17-图片卡片--image-card)
+- [瀑布流 card-masonry](#18-瀑布流--card-masonry)
+- [仓库卡片 repo-card](#19-仓库卡片--repo-card)
+- [窗口 window](#20-窗口--window)
 
 ---
 
-## 1. 文件树 `::: file-tree`
+<a id="1-提示容器-prompt"></a>
+## 1. 提示容器 prompt
 
-::: file-tree title="示例目录" icon="colored"
-- project
-  - src
-    - **main.ts**
-    - parser.ts
-  - package.json
-  - README.md
-:::
+### 默认标题样式
 
----
-
-## 2. 代码树 `::: code-tree`
-
-::: code-tree title="迷你项目" height="280px" entry="src/main.ts"
-```ts title="src/main.ts"
-export function main() {
-  console.log('hello')
-}
-```
-
-```json title="package.json"
-{ "name": "demo", "version": "0.0.1" }
-```
-:::
-
----
-
-## 3. 目录嵌入 `@[code-tree]`
-
-从当前库读取目录下的文本文件（需网络权限仅用于 repo-card，此项读本地库）：
-
-@[code-tree title="插件 src" height="300px" entry="parser.ts"](../src)
-
----
-
-## 4. 选项卡 `::: tabs`
-
-::: tabs#showcase-tabs
-@tab npm
-
-```bash
-npm install
-```
-
-@tab:active pnpm
-
-```bash
-pnpm install
-```
-
-@tab 说明
-
-支持 `::: tabs#id` 或 `id="..."`，选中项可写入 localStorage（见插件设置）。
-:::
-
----
-
-## 5. 代码选项卡 `::: code-tabs`
-
-::: code-tabs
-@tab JavaScript
-```js title="app.js"
-export default { name: 'plume' }
-```
-
-@tab TypeScript
-```ts title="app.ts"
-export default { name: 'plume' } as const
-```
-:::
-
----
-
-## 6. 步骤 `::: steps`
-
-:::: steps
-1. 第一步
-
-   步骤正文，可含 `行内代码`。
-
-2. 第二步
-
-   ```bash
-   npm run build
-   ```
-
-3. 第三步
-
-   ::: tip
-   步骤内可嵌套提示容器。
-   :::
-::::
-
----
-
-## 7. 提示容器 prompt
-
-::: note 备注
-**note** — 可选自定义标题。
+::: note
+这是一个注释框
 :::
 
 ::: info
-**info** — 使用默认标题。
+这是一个信息框
 :::
 
-::: tip 技巧
-**tip** — 常用提示。
+::: tip
+这是一个提示框
 :::
 
 ::: warning
-**warning** — 警告信息。
+这是一个警告框
 :::
 
-::: caution 注意
-**caution** — 强调风险。
+::: caution
+这是一个危险警告框
 :::
 
-::: details 点击展开
-**details** — 可折叠详情块。
+::: details
+这是一个详情折叠框
+:::
+
+### 自定义标题
+
+::: caution STOP
+危险区域，请勿继续
+:::
+
+::: details 点我查看代码
+```js
+console.log('Hello, VitePress!')
+```
 :::
 
 ---
 
-## 8. 卡片 `::: card`
+<a id="2-步骤--steps"></a>
+## 2. 步骤 `::: steps`
 
-::: card title="单张卡片" icon="star"
-卡片正文，支持 **Markdown**、[链接](https://obsidian.md) 与 `代码`。
+:::: steps
+1. 步骤 1
+
+   ```ts
+   console.log('Hello World!')
+   ```
+
+2. 步骤 2
+
+   这里是步骤 2 的相关内容
+
+3. 步骤 3
+
+   ::: tip
+   提示容器
+   :::
+
+4. 结束
+::::
+
+---
+
+<a id="3-文件树--file-tree"></a>
+## 3. 文件树 `::: file-tree`
+
+::: file-tree
+
+- docs
+  - .vuepress
+    - ++ config.ts
+  - -- page1.md
+  - README.md
+- theme  # 一个 **主题** 目录
+  - client
+    - components
+      - **Navbar.vue**
+    - composables
+      - useNavbar.ts
+    - styles
+      - navbar.css
+    - config.ts
+  - node/
+- package.json
+- pnpm-lock.yaml
+- .gitignore
+- README.md
+- …
+:::
+
+> `++` / `--` 表示聚焦 / 淡化；`…` 为省略号节点。可选 `icon="colored"` / `icon="simple"`。
+
+---
+
+<a id="4-代码树--code-tree"></a>
+## 4. 代码树 `::: code-tree`
+
+### code-tree 容器
+
+::: code-tree title="Vue App" height="400px" entry="src/main.ts"
+```vue title="src/components/HelloWorld.vue"
+<template>
+  <div class="hello">
+    <h1>Hello World</h1>
+  </div>
+</template>
+```
+
+```vue title="src/App.vue"
+<template>
+  <div id="app">
+    <h3>vuepress-theme-plume</h3>
+    <HelloWorld />
+  </div>
+</template>
+```
+
+```ts title="src/main.ts"
+import { createApp } from 'vue'
+import App from './App.vue'
+
+createApp(App).mount('#app')
+```
+
+```json title="package.json"
+{
+  "name": "Vue App",
+  "scripts": {
+    "dev": "vite"
+  }
+}
+```
 :::
 
 ---
 
-## 9. 卡片网格 `::: card-grid`
+<a id="5-目录嵌入-code-tree"></a>
+## 5. 目录嵌入 `@[code-tree]`
 
-:::: card-grid cols="3"
-::: card title="A" icon="box"
-网格卡片 A
+### 简单配置
+
+@[code-tree](../src)
+
+### 添加配置
+
+@[code-tree title="插件源码" height="800px" entry="parser.ts"](../src)
+
+> 路径相对于本文件；`build:demo` 会跳过超大文件与 `main.js` 等，避免静态站构建占满内存。
+
+---
+
+<a id="6-字段-field--field-group"></a>
+## 6. 字段 `field` / `field-group`
+
+:::: field-group
+::: field name="theme" type="ThemeConfig" required default="{ base: '/' }"
+主题配置
 :::
 
-::: card title="B" icon="zap"
-网格卡片 B
+::: field name="enabled" type="boolean" optional default="true"
+是否启用
 :::
 
-::: card title="C" icon="heart"
-网格卡片 C
+::: field name="callback" type="(...args: any[]) => void" optional default="() => {}"
+`badge:tip:v1.0.0 新增`
+回调函数
+:::
+
+::: field name="other" type="string" deprecated
+`badge:danger:v0.9.0 弃用`
+已弃用属性
 :::
 ::::
 
 ---
 
-## 10. 瀑布流 `::: card-masonry`
+<a id="7-选项卡--tabs"></a>
+## 7. 选项卡 `::: tabs`
 
-::: card-masonry gap="12"
+::: tabs
+@tab npm
 
-```ts title="a.ts"
-export const a = 1
+npm 应该与 Node.js 被一同安装。
+
+@tab pnpm
+
+```sh
+corepack enable
+corepack use pnpm@8
 ```
 
-```json title="b.json"
-{ "ok": true }
+:::
+
+> 支持 `::: tabs#id` / `id="..."` 与 localStorage 记忆选中项（见插件设置）。
+
+---
+
+<a id="8-代码选项卡--code-tabs"></a>
+## 8. 代码选项卡 `::: code-tabs`
+
+::: code-tabs
+@tab config.js
+```js
+/**
+ * @type {import('vuepress').UserConfig}
+ */
+const config = {
+  // ..
+}
+
+export default config
 ```
 
-```css title="c.css"
-.box { padding: 8px; }
-```
-:::
+@tab config.ts
+```ts
+import type { UserConfig } from 'vuepress'
 
----
+const config: UserConfig = {
+  // ..
+}
 
-## 11. 折叠 `::: collapse`
-
-::: collapse accordion
-- 面板一
-
-  第一个折叠项正文。
-
-- :- 面板二
-
-  `:-` 前缀表示默认展开。
-
-- 面板三
-
-  较短内容。
-:::
-
----
-
-## 12. 仓库卡片 `::: repo-card`
-
-需联网请求 GitHub / Gitee API：
-
-::: repo-card repo="pengzhanbo/vuepress-theme-plume" provider="github"
-:::
-
----
-
-## 13. 链接卡片 `::: link-card`
-
-::: link-card href="https://github.com/pengzhanbo/vuepress-theme-plume" title="VuePress Theme Plume" icon="github" description="上游主题仓库"
-:::
-
----
-
-## 14. 图片卡片 `::: image-card`
-
-::: image-card image="https://picsum.photos/id/1015/600/400" title="示例图片" author="Picsum" date="2025-06-01" width="400" center
-:::
-
----
-
-## 15. 字段 `field` / `field-group`
-
-::: field-group
-
-::: field name="name" type="string" required
-用户名称，必填。
-:::
-
-::: field name="email" type="string" optional
-电子邮箱，选填。
-:::
-
-::: field name="legacy" type="string" deprecated
-已废弃字段示例。
-:::
-
-:::
-
-::: field name="port" type="number" default="5173"
-独立 field，带默认值。
-:::
-
----
-
-## 16. 弹性布局 `::: flex`
-
-::: flex between center
-
-| 列 1 | 列 2 | 列 3 |
-| ---- | ---- | ---- |
-| 1    | 2    | 3    |
-| 4    | 5    | 6    |
-
-| 列 1 | 列 2 | 列 3 |
-| ---- | ---- | ---- |
-| 1    | 2    | 3    |
-| 4    | 5    | 6    |
-
-:::
-
----
-
-## 17. 窗口 `::: window`
-
-::: window title="终端" height="200"
-```bash title="build.sh"
-npm run build
+export default config
 ```
 :::
 
 ---
 
-## 18. 对话 `::: chat`
+<a id="9-时间线--timeline"></a>
+## 9. 时间线 `::: timeline`
 
-::: chat title="示例频道"
-{:2025-06-01 10:00}
-
-{Alice}
-大家好，这是 **chat** 容器示例。
-
-{.}
-收到，样式正常即可。
-
-{Bob}
-+1
-:::
-
----
-
-## 19. 时间线 `::: timeline`
-
-::: timeline  
+::: timeline
 - 节点一
   time=2025-03-20 type=success
 
@@ -381,50 +336,336 @@ npm run build
   正文内容
 :::
 
+::: timeline placement="between"
+- 节点一
+  time=2025-03-20 placement=right
+
+  正文内容
+
+- 节点二
+  time=2025-04-20 type=success
+
+  正文内容
+
+- 节点三
+  time=2025-01-22 type=danger placement=right
+
+  正文内容
+
+- 节点四
+  time=2025-01-22 type=important
+
+  正文内容
+:::
+
+::: timeline line="dotted"
+- 节点一
+  time=2025-03-20
+
+  正文内容
+
+- 节点二
+  time=2025-04-20 type=success
+
+  正文内容
+
+- 节点三
+  time=2025-01-22 type=danger line=dashed
+
+  正文内容
+
+- 节点四
+  time=2025-01-22 type=important line=solid
+
+  正文内容
+:::
 
 ---
 
-## 20. 行内徽章 badge
+<a id="10-弹性布局--flex"></a>
+## 10. 弹性布局 `::: flex`
 
-`badge:tip:已完成` · `badge:info:进行中` · `badge:warning:待处理` · `badge:danger:阻塞`
+::: flex between center
 
-（语法：反引号包裹 `` `badge:类型:文本` ``，类型与文本也可用 `|` 分隔。）
+| 列 1 | 列 2 | 列 3 |
+| ---- | ---- | ---- |
+| 1    | 2    | 3    |
+| 4    | 5    | 6    |
+
+| 列 1 | 列 2 | 列 3 |
+| ---- | ---- | ---- |
+| 1    | 2    | 3    |
+| 4    | 5    | 6    |
+
+:::
 
 ---
 
-## 21. 代码块标题 title
+<a id="11-折叠--collapse"></a>
+## 11. 折叠 `::: collapse`
+
+::: collapse expand
+- 标题 1
+
+  正文内容
+
+- :- 标题 2
+
+  正文内容
+
+- 标题 3
+
+  正文内容
+:::
+
+> `:-` 前缀表示默认展开；`accordion` 属性可改为手风琴模式。
+
+---
+
+<a id="12-对话--chat"></a>
+## 12. 对话 `::: chat`
+
+::: chat title="标题"
+{:2025-03-24 10:15:00}
+
+{用户一}
+用户一的消息
+
+{.}
+本人的消息
+
+{用户二}
+用户二的消息
+
+{.}
+本人的消息
+:::
+
+---
+
+<a id="13-代码块标题-title"></a>
+## 13. 代码块标题 title
 
 在围栏 info 中写 `title="..."`：
+
+```py title="test.py"
+import numpy as np
+```
 
 ```ts title="example.ts"
 const answer = 42
 ```
 
-```bash title="install.sh"
-npm install obsidian-plume
-```
+---
+
+<a id="14-行内徽章-badge"></a>
+## 14. 行内徽章 badge
+
+`badge:tip:已完成`
+
+`badge:info:测试中`
+
+`badge:warning:开发中`
+
+`badge:danger:已废弃`
+
+（语法：反引号包裹 `` `badge:类型:文本` ``，类型与文本也可用 `|` 分隔。）
 
 ---
 
-## 22. 围栏代码块 file-tree
+<a id="15-卡片--card"></a>
+## 15. 卡片 `::: card` / `card-grid`
 
-除 `::: file-tree` 外，也支持 Obsidian 原生围栏（语言标识 `file-tree` / `filetree` / `file_tree`）：
+> **`icon`（Obsidian）**：使用内置 **Lucide 图标名**（如 `smile`、`sparkles`、`external-link`），或图片 URL。不支持 `twemoji:`；已打包的 Iconify 可用 `logos:github-icon` 等。
 
-```file-tree
-- vault
-  - notes
-    - daily.md
-  - .obsidian
-    - plugins
-      - obsidian-plume
-```
+### 单个卡片
+
+::: card title="标题" icon="smile"
+
+这里是卡片内容。
+:::
+
+### 多个卡片
+
+:::: card-grid
+
+::: card title="卡片标题 1" icon="smile"
+
+这里是卡片内容。
+:::
+
+::: card title="卡片标题 2" icon="sparkles"
+
+这里是卡片内容。
+:::
+
+::::
 
 ---
 
-## 后续可补充
+<a id="16-链接卡片--link-card"></a>
+## 16. 链接卡片 `::: link-card`
 
-- 多层嵌套（Steps → Tabs → Card、Card-grid → Collapse → code-tabs 等）
-- `icon="simple"` 与 `colored` 对比
-- 与 Obsidian 原生列表、引用块混排时的表现
+::: link-card href="https://obsidian.md" title="Obsidian 官网" icon="external-link" description="个人知识库的瑞士军刀"
+:::
 
-完善后可将本文件作为库内验收稿，或复制到任意笔记中使用。
+`href` 也可裸写位置参数：
+
+::: link-card https://github.com title="GitHub" icon="github"
+:::
+
+`description` 写在 body（支持 Markdown），优先级低于 `description=` 属性：
+
+::: link-card href="我的笔记" title="跳到笔记" icon="file-text"
+这是一段**多行**描述，可以写 markdown。
+:::
+
+---
+
+<a id="17-图片卡片--image-card"></a>
+## 17. 图片卡片 `::: image-card`
+
+::: image-card image="https://picsum.photos/id/1015/600/400" title="星空" author="John" date="2025-06-01" width="600" center
+:::
+
+---
+
+<a id="18-瀑布流--card-masonry"></a>
+## 18. 瀑布流 `::: card-masonry`
+
+### 卡片瀑布
+
+:::: card-masonry
+
+::: card title="卡片1"
+卡片内容
+:::
+
+::: card title="卡片2"
+卡片内容
+
+卡片内容
+:::
+
+::: card title="卡片3"
+卡片内容
+:::
+
+::: card title="卡片4"
+卡片内容
+:::
+
+::: card title="卡片5"
+卡片内容
+
+卡片内容
+:::
+
+::: card title="卡片6"
+卡片内容
+:::
+
+::::
+
+### 代码块瀑布
+
+::: card-masonry
+
+```ts
+const a = 1
+```
+
+```json
+{
+  "name": "John"
+}
+```
+
+```css
+p {
+  color: red;
+}
+```
+
+```html
+<html>
+  <body>
+    <h1>Hello world</h1>
+  </body>
+</html>
+```
+
+```ts
+const a = 12
+const b = 1
+```
+
+```rust
+fn main() {
+    println!("Hello, world!");
+}
+```
+
+:::
+
+### 图片瀑布
+
+::: card-masonry cols=3
+::: image-card image="https://picsum.photos/id/1015/600/400" title="山涧溪流" author="Unsplash" date="2024-03-12"
+清晨的山谷里，溪水从石缝中流出，带着冷冽的雾气。
+:::
+
+::: image-card image="https://picsum.photos/id/1025/600/700" title="小猴沉思" author="Picsum" date="2023-11-04"
+:::
+
+::: image-card image="https://picsum.photos/id/1043/600/500" title="桥与晨雾" author="Anonymous" date="2024-01-20" href="https://picsum.photos/id/1043"
+雾气漫过老桥，远处的灯还没熄。
+:::
+
+::: image-card image="https://picsum.photos/id/1059/600/800" title="林间小路" author="Unsplash"
+落叶铺满整条小路，没有尽头。
+:::
+
+::: image-card image="https://picsum.photos/id/106/600/400" title="花田" date="2024-05-08"
+:::
+
+::: image-card image="https://picsum.photos/id/1074/600/600" title="雪原" author="Photographer" date="2025-12-25"
+极北的雪，安静得能听见自己的呼吸。
+:::
+
+::: image-card image="https://picsum.photos/id/110/600/900" title="峡谷俯瞰" author="John Doe" date="2024-08-15"
+站在悬崖边，风把所有声音都带走了。
+:::
+
+::: image-card image="https://picsum.photos/id/1084/600/450" title="海岸黄昏"
+:::
+
+::: image-card image="https://picsum.photos/id/1080/600/600" title="樱桃" author="Studio" date="2025-04-01" href="https://picsum.photos"
+盘子里的几颗樱桃，红得发亮。
+:::
+
+:::
+
+---
+
+<a id="19-仓库卡片--repo-card"></a>
+## 19. 仓库卡片 `::: repo-card`
+
+需联网请求 GitHub / Gitee API（`示例.md` 未收录，Obsidian 扩展）：
+
+::: repo-card repo="pengzhanbo/vuepress-theme-plume" provider="github"
+:::
+
+---
+
+<a id="20-窗口--window"></a>
+## 20. 窗口 `::: window`
+
+::: window title="终端" height="200"
+```bash title="build.sh"
+npm run build
+```
+:::
+
+---
+

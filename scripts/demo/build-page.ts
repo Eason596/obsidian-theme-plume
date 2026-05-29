@@ -6,12 +6,20 @@ import { patchDomPolyfills } from "./dom-polyfill";
 import { enrichDemoPage } from "./enrich-demo";
 import { renderDemoMarkdown } from "./demo-markdown";
 import {
+  DEMO_CODE_TREE_EMBED_LIMITS,
   preprocessDemoMarkdown,
   resolveCodeTreeEmbedFromDisk,
   stripFrontmatter
 } from "./fs-embed";
+import { assignHeadingIds, fixTocHashLinks } from "./heading-anchors";
+import { parseDemoSections } from "./demo-sections";
+import { buildDemoSidebar } from "./demo-sidebar";
+import {
+  renderDemoIntro,
+  renderDemoSection,
+  renderFullDocument
+} from "./render-demo-sections";
 import { App, Component } from "./obsidian-shim";
-import { processBadges, renderInnerMarkdown } from "../../src/render";
 import type { BlockRenderContext } from "../../src/render/context";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,7 +36,8 @@ function buildHtml(bodyInner: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Obsidian Plume 组件静态预览 — 由 examples/plume-components.md 构建">
   <title>Obsidian Plume — 组件预览</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" media="(prefers-color-scheme: light)">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="demo-base.css">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -103,26 +112,52 @@ async function main(): Promise<void> {
     },
     renderMarkdown: renderDemoMarkdown,
     resolveCodeTreeEmbed: (sourcePath, dirPath) =>
-      resolveCodeTreeEmbedFromDisk(REPO_ROOT, sourcePath, dirPath)
+      resolveCodeTreeEmbedFromDisk(REPO_ROOT, sourcePath, dirPath, DEMO_CODE_TREE_EMBED_LIMITS)
   };
 
-  const container = document.createElement("div");
-  container.className = "plume-demo-article";
+  const layout = document.createElement("div");
+  layout.className = "demo-layout";
 
-  await renderInnerMarkdown(container as unknown as HTMLElement, markdown, ctx);
-  processBadges(container as unknown as HTMLElement);
+  const { intro, sections } = parseDemoSections(markdown);
+
+  if (sections.length === 0) {
+    const fallback = document.createElement("div");
+    fallback.className = "demo-body plume-demo-article";
+    await renderFullDocument(fallback as unknown as HTMLElement, markdown, ctx);
+    layout.appendChild(fallback);
+  } else {
+    layout.appendChild(buildDemoSidebar(sections) as unknown as HTMLElement);
+
+    const bodyCol = document.createElement("div");
+    bodyCol.className = "demo-body";
+
+    await renderDemoIntro(bodyCol as unknown as HTMLElement, intro, ctx);
+
+    const article = document.createElement("div");
+    article.className = "plume-demo-article";
+    for (const section of sections) {
+      await renderDemoSection(article as unknown as HTMLElement, section, ctx);
+    }
+    bodyCol.appendChild(article);
+    layout.appendChild(bodyCol);
+  }
 
   await enrichDemoPage(
-    container as unknown as HTMLElement,
+    layout as unknown as HTMLElement,
     markdown,
     REPO_ROOT,
-    SOURCE_PATH
+    SOURCE_PATH,
+    DEMO_CODE_TREE_EMBED_LIMITS,
+    ctx
   );
+
+  assignHeadingIds(layout as unknown as HTMLElement);
+  fixTocHashLinks(layout as unknown as HTMLElement);
 
   mkdirSync(DOCS_DIR, { recursive: true });
   copyFileSync(join(REPO_ROOT, "styles.css"), join(DOCS_DIR, "styles.css"));
 
-  const html = buildHtml(container.innerHTML);
+  const html = buildHtml(layout.outerHTML);
   writeFileSync(join(DOCS_DIR, "index.html"), html, "utf8");
 
   console.log(`Wrote ${join(DOCS_DIR, "index.html")}`);

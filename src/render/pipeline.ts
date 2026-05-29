@@ -61,20 +61,18 @@ export async function renderPlumeBlocksInto(
 ): Promise<void> {
   for (const block of blocks) {
     const host = document.createElement("div");
+    // Must be in the document before render: Obsidian setIcon() only paints on connected nodes.
+    container.appendChild(host);
     try {
       await invokeBlockRenderer(host, block, ctx);
     } catch (err) {
       console.error("[obsidian-plume] block render failed", err);
       host.textContent = block.rawContent;
     }
-    if (host.childElementCount === 0) {
-      continue;
+    while (host.firstChild) {
+      container.insertBefore(host.firstChild, host);
     }
-    if (host.childElementCount === 1) {
-      container.appendChild(host.firstElementChild as HTMLElement);
-    } else {
-      container.appendChild(host);
-    }
+    host.remove();
   }
 }
 

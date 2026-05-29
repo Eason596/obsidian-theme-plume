@@ -11,5 +11,6 @@ export {
   decorateCodeBlockTitles,
   decorateSubtreeCodeFences
 } from "./code-fence";
+export { gatherMasonryItems } from "../render";
 export { renderTabbedContainer } from "./tabbed-container";
 export { renderCollapseBlock } from "./blocks/collapse";
