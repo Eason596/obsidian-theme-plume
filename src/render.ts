@@ -77,7 +77,8 @@ import type {
   TimelineContainerAttrs,
   TimelineItemMeta,
   TimelineLineStyle,
-  TimelinePlacement
+  TimelinePlacement,
+  AlignContainerAttrs
 } from "./types";
 
 interface RenderTreeOptions {
@@ -113,7 +114,7 @@ interface PromptPlaceholderBlock {
 
 const ELLIPSIS = "\u2026";
 let commentRenderToken = 0;
-const PROMPT_HEADER_RE = /^(\s*)(:{3,})\s*(note|info|tip|warning|caution|details)\b(.*)$/i;
+const PROMPT_HEADER_RE = /^(\s*)(:{3,})\s*(note|info|tip|warning|caution|details|important)\b(.*)$/i;
 const PROMPT_PLACEHOLDER_CLASS = "vp-prompt-placeholder";
 const PROMPT_PLACEHOLDER_ATTR = "data-vp-prompt-id";
 const PROMPT_DEFAULT_TITLES: Record<PromptContainerType, string> = {
@@ -122,7 +123,8 @@ const PROMPT_DEFAULT_TITLES: Record<PromptContainerType, string> = {
   tip: "TIP",
   warning: "WARNING",
   caution: "CAUTION",
-  details: "DETAILS"
+  details: "DETAILS",
+  important: "IMPORTANT"
 };
 const PROMPT_TYPE_ICONS: Record<PromptContainerType, string | null> = {
   note: "pencil",
@@ -131,7 +133,8 @@ const PROMPT_TYPE_ICONS: Record<PromptContainerType, string | null> = {
   warning: "alert-triangle",
   caution: "alert-octagon",
   // details uses the native chevron ::before; skip the icon
-  details: null
+  details: null,
+  important: "alert-circle"
 };
 
 function applyPromptTitleIcon(host: HTMLElement, type: PromptContainerType): void {
@@ -1163,6 +1166,11 @@ export async function renderBlock(
       return;
     }
 
+    case "align": {
+      await renderAlignBlock(container, block.rawContent, block.attrs as AlignContainerAttrs, ctx);
+      return;
+    }
+
     case "window": {
       await renderWindowBlock(container, block.rawContent, block.attrs as WindowContainerAttrs, ctx);
       return;
@@ -2107,6 +2115,39 @@ async function renderFlexBlock(
   }
 
   normalizeFlexChildren(wrapper, attrs);
+}
+
+/* ===== Align ===== */
+
+async function renderAlignBlock(
+  container: HTMLElement,
+  rawContent: string,
+  attrs: AlignContainerAttrs,
+  ctx: BlockRenderContext
+): Promise<void> {
+  const wrapper = container.createDiv({ cls: "vp-align" });
+  
+  // 设置对齐样式
+  switch (attrs.align) {
+    case "center":
+      wrapper.style.textAlign = "center";
+      break;
+    case "right":
+      wrapper.style.textAlign = "right";
+      break;
+    case "left":
+    default:
+      wrapper.style.textAlign = "left";
+      break;
+  }
+
+  const bodyMd = rawContent.replace(/^\n+|\n+$/g, "");
+  if (!bodyMd) {
+    return;
+  }
+
+  await renderInnerMarkdown(wrapper, bodyMd, ctx);
+  pruneEmptyMarkdownNodes(wrapper);
 }
 
 /* ===== Window ===== */

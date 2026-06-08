@@ -48,7 +48,7 @@ export interface TabItem {
   active?: boolean;
 }
 
-export type PromptContainerType = "note" | "info" | "tip" | "warning" | "caution" | "details";
+export type PromptContainerType = "note" | "info" | "tip" | "warning" | "caution" | "details" | "important";
 
 export interface PromptContainerAttrs {
   type: PromptContainerType;
@@ -113,6 +113,12 @@ export interface FlexContainerAttrs {
   column?: boolean;
   wrap?: boolean;
   gap?: string;
+}
+
+export type AlignContainerType = "left" | "center" | "right";
+
+export interface AlignContainerAttrs {
+  align: AlignContainerType;
 }
 
 export interface WindowContainerAttrs {

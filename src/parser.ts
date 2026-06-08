@@ -24,7 +24,8 @@ import type {
   CodeTabsContainerAttrs,
   TimelineContainerAttrs,
   TimelineLineStyle,
-  TimelinePlacement
+  TimelinePlacement,
+  AlignContainerType
 } from "./types";
 
 const RE_FOCUS = /^\*\*(.*)\*\*(?:$|\s+)/;
@@ -536,7 +537,7 @@ export function parseFlexContainerAttrs(rest: string): FlexContainerAttrs {
 }
 
 export function parsePromptContainerHeader(line: string): (PromptContainerAttrs & { markerLen: number }) | null {
-  const match = line.trim().match(/^(:{3,})\s*(note|info|tip|warning|caution|details)\b(.*)$/i);
+  const match = line.trim().match(/^(:{3,})\s*(note|info|tip|warning|caution|details|important)\b(.*)$/i);
   if (!match) {
     return null;
   }
@@ -553,7 +554,7 @@ export function parsePromptContainerHeader(line: string): (PromptContainerAttrs 
 }
 
 export function isPromptContainerOpenMarker(text: string): boolean {
-  return /^:{3,}\s*(note|info|tip|warning|caution|details)\b/i.test(text.trim());
+  return /^:{3,}\s*(note|info|tip|warning|caution|details|important)\b/i.test(text.trim());
 }
 
 export function isFileTreeCloseMarker(text: string): boolean {
@@ -1049,6 +1050,10 @@ function detectContainerOpen(line: string, fallbackIcon: FileTreeIconMode): Cont
     return { type: "flex", markerLen, attrs: parseFlexContainerAttrs(rest) };
   }
 
+  if (keyword === "center" || keyword === "right") {
+    return { type: "align", markerLen, attrs: { align: keyword as AlignContainerType } };
+  }
+
   if (keyword === "window" || keyword === "demo-wrapper") {
     const attrs: WindowContainerAttrs = {};
     const title = parseAttrValue(rest, "title");
@@ -1095,7 +1100,8 @@ function detectContainerOpen(line: string, fallbackIcon: FileTreeIconMode): Cont
     keyword === "tip" ||
     keyword === "warning" ||
     keyword === "caution" ||
-    keyword === "details"
+    keyword === "details" ||
+    keyword === "important"
   ) {
     const title = rest.trim() || undefined;
     return {
