@@ -2,6 +2,7 @@ import { App, MarkdownView, TFile, setIcon } from "obsidian";
 import { resolveNodeIcon } from "../icons";
 import { scanCodeFences, decorateCodeBlockTitles } from "../render";
 import type { FileTreeIconMode } from "../types";
+import { prepareIconifyIconElement, processIconifyIcons } from "../render/iconify-online";
 
 /**
  * Obsidian treats fenced-code info strings (e.g. title="foo") as cosmetic and
@@ -145,9 +146,9 @@ export class CodeFenceTitleService {
         if (desc.colorClass) {
           iconHost.classList.add(desc.colorClass);
         }
-        if (desc.offlineSvg) {
-          iconHost.classList.add("ft-icon-offline");
-          iconHost.innerHTML = desc.offlineSvg;
+        if (desc.iconifyId) {
+          prepareIconifyIconElement(iconHost, desc.iconifyId);
+          void processIconifyIcons(iconHost);
         } else {
           setIcon(iconHost, desc.icon);
         }

@@ -78,6 +78,9 @@ export class PreviewDocumentSync {
       apply();
       requestAnimationFrame(apply);
     });
+    window.setTimeout(apply, 50);
+    window.setTimeout(apply, 150);
+    window.setTimeout(apply, 300);
   }
 
   /** Strip Plume cache attrs so the next section post-process pass rebuilds blocks. */

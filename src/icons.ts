@@ -1,10 +1,10 @@
 import { getIconIds, type IconName } from "obsidian";
-import { resolveOfflineIconSvg } from "./offlineIconify";
+import { resolveOnlineIconifyId } from "./offlineIconify";
 import type { FileTreeIconMode } from "./types";
 
 export interface IconDescriptor {
   icon: IconName;
-  offlineSvg?: string;
+  iconifyId?: string;
   colorClass?: string;
 }
 
@@ -250,10 +250,10 @@ const PARTIAL_STYLES: Array<{ include: string; style: IconStyle }> = [
   { include: ".lock", style: { icon: CANDIDATES.lock, colorClass: "ft-color-lock" } }
 ];
 
-function applyStyle(baseIcon: IconName, defaultColor: string, style: IconStyle | undefined, offlineSvg?: string): IconDescriptor {
+function applyStyle(baseIcon: IconName, defaultColor: string, style: IconStyle | undefined, iconifyId?: string): IconDescriptor {
   return {
     icon: safeIcon(style?.icon, baseIcon),
-    offlineSvg,
+    iconifyId,
     colorClass: style?.colorClass ?? defaultColor
   };
 }
@@ -294,8 +294,8 @@ export function resolveNodeIcon(
 ): IconDescriptor {
   const normalizedPath = fileName.replace(/\\/g, "/").toLowerCase();
   const baseName = pickBaseName(normalizedPath);
-  const offlineSvg = mode === "colored"
-    ? resolveOfflineIconSvg(normalizedPath, nodeType, expanded)
+  const iconifyId = mode === "colored"
+    ? resolveOnlineIconifyId(normalizedPath, nodeType, expanded)
     : undefined;
 
   if (mode === "simple") {
@@ -311,28 +311,28 @@ export function resolveNodeIcon(
       expanded ? DEFAULT_FOLDER_OPEN_ICON : DEFAULT_FOLDER_ICON,
       DEFAULT_FOLDER_COLOR,
       folderStyle,
-      offlineSvg
+      iconifyId
     );
   }
 
   const namedStyle = NAMED_FILE_STYLES[baseName];
   if (namedStyle) {
-    return applyStyle(DEFAULT_FILE_ICON, DEFAULT_FILE_COLOR, namedStyle, offlineSvg);
+    return applyStyle(DEFAULT_FILE_ICON, DEFAULT_FILE_COLOR, namedStyle, iconifyId);
   }
 
   const extensionCandidates = getExtensionCandidates(baseName);
   for (const extension of extensionCandidates) {
     const extensionStyle = EXTENSION_STYLES[extension];
     if (extensionStyle) {
-      return applyStyle(DEFAULT_FILE_ICON, DEFAULT_FILE_COLOR, extensionStyle, offlineSvg);
+      return applyStyle(DEFAULT_FILE_ICON, DEFAULT_FILE_COLOR, extensionStyle, iconifyId);
     }
   }
 
   for (const item of PARTIAL_STYLES) {
     if (normalizedPath.includes(item.include)) {
-      return applyStyle(DEFAULT_FILE_ICON, DEFAULT_FILE_COLOR, item.style, offlineSvg);
+      return applyStyle(DEFAULT_FILE_ICON, DEFAULT_FILE_COLOR, item.style, iconifyId);
     }
   }
 
-  return applyStyle(DEFAULT_FILE_ICON, DEFAULT_FILE_COLOR, undefined, offlineSvg);
+  return applyStyle(DEFAULT_FILE_ICON, DEFAULT_FILE_COLOR, undefined, iconifyId);
 }

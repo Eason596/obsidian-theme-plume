@@ -221,7 +221,8 @@ export type BlockType =
   | "flex"
   | "window"
   | "chat"
-  | "timeline";
+  | "timeline"
+  | "align";
 
 export interface ParsedBlock {
   type: BlockType;
@@ -249,6 +250,7 @@ export interface ParsedBlock {
     | FieldContainerAttrs
     | FieldGroupContainerAttrs
     | FlexContainerAttrs
+    | AlignContainerAttrs
     | WindowContainerAttrs
     | ChatContainerAttrs
     | TimelineContainerAttrs

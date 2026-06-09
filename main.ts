@@ -16,7 +16,8 @@ import {
   parseAllBlocks,
   parseFileTreeRawContent
 } from "./src/parser";
-import { renderFileTreeInto, processBadges, type BlockRenderContext } from "./src/render";
+import { renderFileTreeInto, processBadges, processPlots, type BlockRenderContext } from "./src/render";
+import { processIconifyIcons } from "./src/render/iconify-online";
 import { PreviewPipeline } from "./src/pipeline/preview-pipeline";
 import { PreviewDocumentSync } from "./src/pipeline/preview-sync";
 import {
@@ -121,8 +122,15 @@ export default class ObsidianPlumePlugin extends Plugin {
       await this.pipeline.processSection(rootElement, ctx);
     });
 
-    this.registerMarkdownPostProcessor((rootElement) => {
-      processBadges(rootElement);
+    this.registerMarkdownPostProcessor(async (rootElement, ctx) => {
+      await processBadges(rootElement, {
+        app: this.app,
+        sourcePath: ctx.sourcePath,
+        component: this,
+        postProcessorCtx: ctx
+      });
+      await processIconifyIcons(rootElement);
+      processPlots(rootElement);
     });
 
     const fileTreeBlockProcessor = (source: string, element: HTMLElement): void => {
@@ -209,6 +217,10 @@ export default class ObsidianPlumePlugin extends Plugin {
         });
       })
     );
+
+    this.registerDomEvent(document, "scroll", (event) => {
+      this.rememberPreviewScrollFromEvent(event);
+    }, true);
   }
 
   onunload(): void {
@@ -273,7 +285,7 @@ export default class ObsidianPlumePlugin extends Plugin {
   }
 
   /** Last resort: full Obsidian preview rebuild (command palette / broken state). */
-  private fullRerenderPreviewView(view: MarkdownView): void {
+  private fullRerenderPreviewView(view: MarkdownView, restoreScrollY?: number): void {
     const path = view.file?.path;
     if (!path) {
       return;
@@ -283,13 +295,36 @@ export default class ObsidianPlumePlugin extends Plugin {
     this.parseCacheByPath.delete(path);
     this.pipeline.clear();
 
-    const scrollY = this.previewSync.resolveScrollRestore(view, path);
+    const scrollY = restoreScrollY ?? this.previewSync.resolveScrollRestore(view, path);
     PreviewDocumentSync.invalidatePreviewDom(view);
     view.previewMode.set(text, true);
     view.previewMode.rerender(true);
     requestAnimationFrame(() => {
       this.previewSync.applyScroll(view, path, scrollY);
     });
+  }
+
+  private rememberPreviewScrollFromEvent(event: Event): void {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView) || view.getMode() !== "preview" || !view.file) {
+        continue;
+      }
+      const container = view.previewMode.containerEl;
+      if (target === container || container.contains(target)) {
+        try {
+          this.previewSync.rememberScroll(view.file.path, view.previewMode.getScroll());
+        } catch {
+          /* preview detached */
+        }
+        return;
+      }
+    }
   }
 
   /**
@@ -352,6 +387,12 @@ export default class ObsidianPlumePlugin extends Plugin {
       } catch {
         /* preview detached */
       }
+    } else if (mode === "preview") {
+      try {
+        this.previewSync.rememberScroll(path, view.previewMode.getScroll());
+      } catch {
+        /* preview detached */
+      }
     }
 
     this.markdownModeByPath.set(path, mode);
@@ -359,7 +400,23 @@ export default class ObsidianPlumePlugin extends Plugin {
     if (needsFlush) {
       this.bumpContentEpoch(path);
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => this.flushPlumeBlocks(path));
+        requestAnimationFrame(() => {
+          if (enteringPreview) {
+            const freshView = this.app.workspace.getLeavesOfType("markdown")
+              .map((leaf) => leaf.view)
+              .find((candidate): candidate is MarkdownView => {
+                return candidate instanceof MarkdownView
+                  && candidate.file?.path === path
+                  && candidate.getMode() === "preview";
+              });
+            if (freshView) {
+              const scrollY = this.previewSync.resolveScrollRestore(freshView, path);
+              this.fullRerenderPreviewView(freshView, scrollY);
+              return;
+            }
+          }
+          this.flushPlumeBlocks(path);
+        });
       });
     }
   }

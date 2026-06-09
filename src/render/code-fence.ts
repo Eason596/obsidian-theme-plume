@@ -1,6 +1,7 @@
 import { setIcon } from "obsidian";
 import { resolveNodeIcon } from "../icons";
 import type { FileTreeIconMode } from "../types";
+import { prepareIconifyIconElement, processIconifyIcons } from "./iconify-online";
 
 export const CODE_TITLE_PROCESSED_ATTR = "data-vp-code-title-done";
 
@@ -79,9 +80,9 @@ function applyCodeTitleIcon(
     host.classList.add(desc.colorClass);
   }
   host.innerHTML = "";
-  if (desc.offlineSvg) {
-    host.classList.add("ft-icon-offline");
-    host.innerHTML = desc.offlineSvg;
+  if (desc.iconifyId) {
+    prepareIconifyIconElement(host, desc.iconifyId);
+    void processIconifyIcons(host);
     return;
   }
   try {
@@ -142,7 +143,7 @@ export function decorateCodeBlockTitles(
     const iconHost = label.querySelector(".vp-code-block-title-icon");
     if (!(iconHost instanceof HTMLElement)) continue;
     const hasSvg =
-      iconHost.classList.contains("ft-icon-offline") && iconHost.querySelector("svg");
+      iconHost.classList.contains("ft-icon-online") && iconHost.querySelector("svg");
     const hasLucide = iconHost.querySelector("svg");
     if (hasSvg || hasLucide) continue;
     applyCodeTitleIcon(iconHost, title, mode, pre);

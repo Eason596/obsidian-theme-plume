@@ -48,9 +48,3 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ---
-
-Third-party assets
-------------------
-
-Generated offline icon data may include SVG from Iconify collections
-(e.g. @iconify-json/vscode-icons, mdi, logos). See each package's license on npm.

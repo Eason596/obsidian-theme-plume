@@ -1,8 +1,9 @@
 import { App, Component, type IconName, MarkdownPostProcessorContext, Notice, requestUrl, setIcon } from "obsidian";
 import { renderPlumeMarkdown, type PlumeMarkdownContext } from "./markdown/plume-markdown";
+import { applyVuepressMarkdownTransforms } from "./render/markdown-transforms";
 import { resolveNodeIcon } from "./icons";
-import { lookupOfflineIconSvg } from "./offlineIconify";
 import { registerBlockRenderer } from "./render/block-registry";
+import { prepareIconifyIconElement, processIconifyIcons } from "./render/iconify-online";
 import { renderCollapseBlock } from "./render/blocks/collapse";
 import {
   decorateCodeBlockTitles,
@@ -555,13 +556,13 @@ export function renderFileTreeInto(container: HTMLElement, options: RenderTreeOp
           icon.classList.add(iconDescriptor.colorClass);
         }
 
-        if (iconDescriptor.offlineSvg) {
-          icon.classList.add("ft-icon-offline");
-          icon.innerHTML = iconDescriptor.offlineSvg;
+        if (iconDescriptor.iconifyId) {
+          prepareIconifyIconElement(icon, iconDescriptor.iconifyId);
+          void processIconifyIcons(icon);
           return;
         }
 
-        icon.classList.remove("ft-icon-offline");
+        icon.classList.remove("ft-icon-online");
         icon.innerHTML = "";
         setIcon(icon, iconDescriptor.icon);
       };
@@ -827,13 +828,13 @@ export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTr
           icon.classList.add(iconDescriptor.colorClass);
         }
 
-        if (iconDescriptor.offlineSvg) {
-          icon.classList.add("ft-icon-offline");
-          icon.innerHTML = iconDescriptor.offlineSvg;
+        if (iconDescriptor.iconifyId) {
+          prepareIconifyIconElement(icon, iconDescriptor.iconifyId);
+          void processIconifyIcons(icon);
           return;
         }
 
-        icon.classList.remove("ft-icon-offline");
+        icon.classList.remove("ft-icon-online");
         icon.innerHTML = "";
         setIcon(icon, iconDescriptor.icon);
       };
@@ -966,7 +967,7 @@ export async function gatherMasonryItems(
 
   const blocks = parseAllBlocks(trimmed, ctx.defaultIconMode);
 
-  if (blocks.length > 0) {
+  if (blocks.length > 0 && contentIsOnlyBlocksAndBlankLines(trimmed, blocks)) {
     const staging = document.createElement("div");
     staging.className = "plume-masonry-staging";
     if (document.body) {
@@ -2497,15 +2498,12 @@ function applyInlineIcon(host: HTMLElement, icon: string, className: string): vo
     return;
   }
   if (trimmed.includes(":")) {
-    const offlineSvg = lookupOfflineIconSvg(trimmed);
-    if (offlineSvg) {
-      const span = document.createElement("span");
-      span.className = `${className} ft-icon-offline`;
-      span.setAttribute("aria-hidden", "true");
-      span.innerHTML = offlineSvg;
-      host.appendChild(span);
-      return;
-    }
+    const span = document.createElement("span");
+    span.className = className;
+    prepareIconifyIconElement(span, trimmed);
+    host.appendChild(span);
+    void processIconifyIcons(span);
+    return;
   }
   const span = document.createElement("span");
   span.className = className;
@@ -2535,37 +2533,203 @@ function paintObsidianIcon(span: HTMLElement, iconId: string): void {
 }
 
 // ===========================================================================
-// Badge: replace the inline code-span shortcut `` `badge:type:text` `` with a
-// styled `.vp-badge` span, mirroring VuePress' VPBadge component. (HTML-style
-// `<Badge>` isn't supported because Obsidian's reader strips unknown tags.)
+// Badge: render VuePress / Plume `<Badge>` tags as styled `.vp-badge` spans.
 // ===========================================================================
 
 const BADGE_TYPES = new Set(["tip", "info", "warning", "danger", "note", "important"]);
 const BADGE_PROCESSED_ATTR = "data-vp-badge-processed";
+const PLOT_PROCESSED_ATTR = "data-vp-plot-processed";
 
-export function processBadges(rootElement: HTMLElement): void {
-  const codes = rootElement.querySelectorAll("code");
-  codes.forEach((c) => {
-    if (c.hasAttribute(BADGE_PROCESSED_ATTR)) return;
-    if (c.parentElement?.tagName === "PRE") return;
-    const txt = c.textContent ?? "";
-    const m = /^badge[:\s]+([a-z][a-z0-9-]*)(?:[|:](.*))?$/i.exec(txt.trim());
-    if (!m) return;
-    const span = buildBadgeSpan({ type: m[1], text: m[2] ?? m[1] });
+export async function processBadges(
+  rootElement: HTMLElement,
+  markdownContext?: PlumeMarkdownContext
+): Promise<void> {
+  const badgeElements = rootElement.querySelectorAll("badge");
+  badgeElements.forEach((el) => {
+    if (!(el instanceof HTMLElement) || el.hasAttribute(BADGE_PROCESSED_ATTR)) return;
+    const span = buildBadgeSpan({
+      type: el.getAttribute("type") ?? "tip",
+      text: el.getAttribute("text") ?? el.textContent ?? "",
+      color: el.getAttribute("color") ?? undefined,
+      bgColor:
+        el.getAttribute("bg-color")
+        ?? el.getAttribute("bgColor")
+        ?? el.getAttribute("bgcolor")
+        ?? undefined,
+      borderColor:
+        el.getAttribute("border-color")
+        ?? el.getAttribute("borderColor")
+        ?? el.getAttribute("bordercolor")
+        ?? undefined
+    });
     span.setAttribute(BADGE_PROCESSED_ATTR, "1");
-    c.replaceWith(span);
+    el.replaceWith(span);
   });
+
+  if (
+    !markdownContext
+    || rootElement.classList.contains("plume-has-block")
+    || rootElement.dataset.plumeBadgeRerender === "1"
+  ) {
+    return;
+  }
+
+  const sectionInfo = markdownContext.postProcessorCtx?.getSectionInfo(rootElement);
+  if (!sectionInfo) {
+    return;
+  }
+
+  const lines = sectionInfo.text.split(/\r?\n/);
+  const sectionMarkdown = lines
+    .slice(sectionInfo.lineStart, sectionInfo.lineEnd + 1)
+    .join("\n");
+  const transformed = applyVuepressMarkdownTransforms(sectionMarkdown);
+  if (transformed === sectionMarkdown) {
+    return;
+  }
+
+  rootElement.dataset.plumeBadgeRerender = "1";
+  await renderPlumeMarkdown(rootElement, transformed, markdownContext);
+}
+
+export function processPlots(rootElement: HTMLElement): void {
+  const textNodes: Text[] = [];
+  const walker = document.createTreeWalker(
+    rootElement,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: (node) => {
+        if (node.parentElement?.tagName === "CODE" || 
+            node.parentElement?.tagName === "PRE" ||
+            node.parentElement?.tagName === "SCRIPT" ||
+            node.parentElement?.tagName === "STYLE") {
+          return NodeFilter.FILTER_REJECT;
+        }
+        if (node.textContent?.includes("!!")) {
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        return NodeFilter.FILTER_REJECT;
+      }
+    }
+  );
+
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (node instanceof Text) {
+      textNodes.push(node);
+    }
+  }
+
+  for (const textNode of textNodes) {
+    if (textNode.parentElement?.hasAttribute(PLOT_PROCESSED_ATTR)) continue;
+    
+    const text = textNode.textContent ?? "";
+    const plotRegex = /!!([^!]+)!!(\{[^}]*\})?/g;
+    let match;
+    let lastIndex = 0;
+    const fragments: (string | HTMLElement)[] = [];
+
+    while ((match = plotRegex.exec(text)) !== null) {
+      const beforeText = text.slice(lastIndex, match.index);
+      if (beforeText) {
+        fragments.push(beforeText);
+      }
+
+      const plotContent = match[1];
+      const attrsStr = match[2] || "";
+      const plotEl = buildPlotSpan(plotContent, attrsStr);
+      fragments.push(plotEl);
+
+      lastIndex = plotRegex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      fragments.push(text.slice(lastIndex));
+    }
+
+    if (fragments.length > 1) {
+      const parent = textNode.parentElement;
+      if (parent) {
+        const fragment = document.createDocumentFragment();
+        for (const frag of fragments) {
+          if (typeof frag === "string") {
+            fragment.appendChild(document.createTextNode(frag));
+          } else {
+            fragment.appendChild(frag);
+          }
+        }
+        parent.replaceChild(fragment, textNode);
+        parent.setAttribute(PLOT_PROCESSED_ATTR, "1");
+      }
+    }
+  }
+
+  // 为点击触发的隐秘文本添加事件监听
+  const clickPlots = rootElement.querySelectorAll('.vp-plot[data-vp-plot-trigger="click"]');
+  clickPlots.forEach((plot) => {
+    if (plot instanceof HTMLElement && !plot.hasAttribute('data-vp-plot-listener')) {
+      plot.addEventListener('click', (e) => {
+        e.preventDefault();
+        plot.classList.toggle('vp-plot-revealed');
+      });
+      plot.setAttribute('data-vp-plot-listener', 'true');
+    }
+  });
+}
+
+function buildPlotSpan(content: string, attrsStr: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = "vp-plot";
+  
+  // 解析属性
+  const attrs = attrsStr.replace(/^\{|\}$/g, "").trim();
+  const parts = attrs.split(/\s+/);
+  
+  let trigger = "hover";
+  let effect = "mask";
+  
+  for (const part of parts) {
+    if (part === ".click" || part === "click") trigger = "click";
+    if (part === ".hover" || part === "hover") trigger = "hover";
+    if (part === ".mask" || part === "mask") effect = "mask";
+    if (part === ".blur" || part === "blur") effect = "blur";
+  }
+  
+  span.dataset.vpPlotTrigger = trigger;
+  span.dataset.vpPlotEffect = effect;
+  
+  const contentSpan = document.createElement("span");
+  contentSpan.className = `vp-plot-content vp-plot-${effect}`;
+  contentSpan.textContent = content;
+  span.appendChild(contentSpan);
+  
+  return span;
 }
 
 function buildBadgeSpan(opts: {
   type: string;
   text: string;
+  color?: string;
+  bgColor?: string;
+  borderColor?: string;
 }): HTMLSpanElement {
   const normalized = opts.type.toLowerCase();
-  const cls = BADGE_TYPES.has(normalized) ? normalized : "tip";
+  const cls = normalized.replace(/[^a-z0-9_-]/g, "") || "tip";
   const span = document.createElement("span");
   span.className = `vp-badge ${cls}`;
   span.textContent = opts.text;
+  if (opts.color) {
+    span.style.color = opts.color;
+  }
+  if (opts.bgColor) {
+    span.style.backgroundColor = opts.bgColor;
+  }
+  if (opts.borderColor) {
+    span.style.borderColor = opts.borderColor;
+  }
+  if (!BADGE_TYPES.has(cls) && !opts.color && !opts.bgColor && !opts.borderColor) {
+    span.classList.add("tip");
+  }
   return span;
 }
 

@@ -1,18 +1,5 @@
 import { VUEPRESS_FILE_ICON_RULES } from "./generated/vuepressFileIcons";
 
-type OfflineIconSvgMap = Record<string, string>;
-
-let offlineIconSvgMap: OfflineIconSvgMap | undefined;
-
-/** Load colored offline SVG map on first use (simple icon mode skips this). */
-function getOfflineIconSvgMap(): OfflineIconSvgMap {
-  if (!offlineIconSvgMap) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    offlineIconSvgMap = require("./generated/offlineIconData").OFFLINE_ICON_SVGS as OfflineIconSvgMap;
-  }
-  return offlineIconSvgMap;
-}
-
 interface OfflineIconStyle {
   icon?: string | readonly string[];
   openIcon?: string | readonly string[];
@@ -21,6 +8,21 @@ interface OfflineIconStyle {
 const DEFAULT_FILE_OFFLINE_ICON = "vscode-icons:default-file";
 const DEFAULT_FOLDER_OFFLINE_ICON = "vscode-icons:default-folder";
 const DEFAULT_FOLDER_OPEN_OFFLINE_ICON = "vscode-icons:default-folder-opened";
+
+const ICONIFY_PREFIX_ALIASES: Record<string, string> = {
+  "vvscode-icons": "vscode-icons"
+};
+
+export function normalizeIconifyId(iconId: string): string {
+  const trimmed = iconId.trim();
+  const separator = trimmed.indexOf(":");
+  if (separator === -1) {
+    return trimmed;
+  }
+  const prefix = trimmed.slice(0, separator);
+  const name = trimmed.slice(separator + 1);
+  return `${ICONIFY_PREFIX_ALIASES[prefix] ?? prefix}:${name}`;
+}
 
 const OFFLINE_CANDIDATES = {
   package: ["logos:npm-icon", "vscode-icons:file-type-npm", "vscode-icons:file-type-package", "vscode-icons:file-type-node"],
@@ -530,19 +532,21 @@ function getExtensionCandidates(baseName: string): string[] {
   return candidates;
 }
 
-function resolveFirstOfflineName(icon: string | readonly string[] | undefined): string | undefined {
+function resolveFirstIconifyName(icon: string | readonly string[] | undefined): string | undefined {
   if (!icon) {
     return undefined;
   }
 
   if (typeof icon === "string") {
-    return getOfflineIconSvgMap()[icon] ? icon : undefined;
+    const normalized = normalizeIconifyId(icon);
+    return normalized.includes(":") ? normalized : undefined;
   }
 
   if (Array.isArray(icon)) {
     for (const candidate of icon) {
-      if (getOfflineIconSvgMap()[candidate]) {
-        return candidate;
+      const normalized = normalizeIconifyId(candidate);
+      if (normalized.includes(":")) {
+        return normalized;
       }
     }
     return undefined;
@@ -551,19 +555,11 @@ function resolveFirstOfflineName(icon: string | readonly string[] | undefined): 
   return undefined;
 }
 
-function resolveOfflineSvgWithFallback(icon: string | readonly string[] | undefined, fallback: string): string | undefined {
-  const name = resolveFirstOfflineName(icon) ?? resolveFirstOfflineName(fallback);
-  return name ? getOfflineIconSvgMap()[name] : undefined;
+function resolveIconifyIdWithFallback(icon: string | readonly string[] | undefined, fallback: string): string | undefined {
+  return resolveFirstIconifyName(icon) ?? resolveFirstIconifyName(fallback);
 }
 
-/** Lookup a pre-bundled Iconify id (e.g. `logos:github-icon`) for inline icons on cards, link-cards, etc. */
-export function lookupOfflineIconSvg(iconId: string): string | undefined {
-  const key = iconId.trim();
-  if (!key) return undefined;
-  return getOfflineIconSvgMap()[key];
-}
-
-export function resolveOfflineIconSvg(fileName: string, nodeType: "folder" | "file", expanded: boolean): string | undefined {
+export function resolveOnlineIconifyId(fileName: string, nodeType: "folder" | "file", expanded: boolean): string | undefined {
   const normalizedPath = fileName.replace(/\\/g, "/").toLowerCase();
   const baseName = pickBaseName(normalizedPath);
 
@@ -571,33 +567,33 @@ export function resolveOfflineIconSvg(fileName: string, nodeType: "folder" | "fi
     const folderStyle = OFFLINE_VUEPRESS_FOLDER_STYLES[baseName] ?? OFFLINE_FOLDER_STYLES[baseName];
     const candidate = expanded ? folderStyle?.openIcon ?? folderStyle?.icon : folderStyle?.icon;
     const fallback = expanded ? DEFAULT_FOLDER_OPEN_OFFLINE_ICON : DEFAULT_FOLDER_OFFLINE_ICON;
-    return resolveOfflineSvgWithFallback(candidate, fallback);
+    return resolveIconifyIdWithFallback(candidate, fallback);
   }
 
   const namedStyle = OFFLINE_VUEPRESS_NAMED_STYLES[baseName] ?? OFFLINE_NAMED_FILE_STYLES[baseName];
   if (namedStyle) {
-    return resolveOfflineSvgWithFallback(namedStyle.icon, DEFAULT_FILE_OFFLINE_ICON);
+    return resolveIconifyIdWithFallback(namedStyle.icon, DEFAULT_FILE_OFFLINE_ICON);
   }
 
   const extensionCandidates = getExtensionCandidates(baseName);
   for (const extension of extensionCandidates) {
     const extensionStyle = OFFLINE_VUEPRESS_EXTENSION_STYLES[extension] ?? OFFLINE_EXTENSION_STYLES[extension];
     if (extensionStyle) {
-      return resolveOfflineSvgWithFallback(extensionStyle.icon, DEFAULT_FILE_OFFLINE_ICON);
+      return resolveIconifyIdWithFallback(extensionStyle.icon, DEFAULT_FILE_OFFLINE_ICON);
     }
   }
 
   for (const item of OFFLINE_VUEPRESS_PARTIAL_STYLES) {
     if (normalizedPath.includes(item.include)) {
-      return resolveOfflineSvgWithFallback(item.style.icon, DEFAULT_FILE_OFFLINE_ICON);
+      return resolveIconifyIdWithFallback(item.style.icon, DEFAULT_FILE_OFFLINE_ICON);
     }
   }
 
   for (const item of OFFLINE_PARTIAL_STYLES) {
     if (normalizedPath.includes(item.include)) {
-      return resolveOfflineSvgWithFallback(item.style.icon, DEFAULT_FILE_OFFLINE_ICON);
+      return resolveIconifyIdWithFallback(item.style.icon, DEFAULT_FILE_OFFLINE_ICON);
     }
   }
 
-  return resolveOfflineSvgWithFallback(undefined, DEFAULT_FILE_OFFLINE_ICON);
+  return resolveIconifyIdWithFallback(undefined, DEFAULT_FILE_OFFLINE_ICON);
 }

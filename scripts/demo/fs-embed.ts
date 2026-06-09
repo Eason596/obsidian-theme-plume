@@ -41,7 +41,7 @@ export const DEMO_CODE_TREE_EMBED_LIMITS: CodeTreeEmbedLimits = {
   maxFileBytes: 96_000,
   skipDirNames: new Set(["node_modules", ".git", "docs", ".cursor"]),
   skipPathPattern:
-    /(?:^|\/)(?:main\.js|package-lock\.json)$|offlineIconData\.ts$|\.build-demo\.mjs$/i
+    /(?:^|\/)(?:main\.js|package-lock\.json)$|\.build-demo\.mjs$/i
 };
 
 function getExtension(filepath: string): string {

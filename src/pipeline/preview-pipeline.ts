@@ -159,12 +159,10 @@ export class PreviewPipeline {
     const snapshotInSync = docText === info.text;
     const isDirty = this.options.isDocumentDirty?.(ctx.sourcePath) ?? false;
 
-    if (
-      !isDirty
-      && snapshotInSync
-      && rootElement.dataset.plumeBlockKey === blockKey
-      && rootElement.childElementCount > 0
-    ) {
+    // 强制重新渲染的条件：文档脏了、快照不同步、或块key不匹配
+    const shouldRerender = isDirty || !snapshotInSync || rootElement.dataset.plumeBlockKey !== blockKey || rootElement.childElementCount === 0;
+
+    if (!shouldRerender) {
       return;
     }
 

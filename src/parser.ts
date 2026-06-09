@@ -8,6 +8,7 @@ import type {
   FieldContainerAttrs,
   FieldGroupContainerAttrs,
   FlexContainerAttrs,
+  AlignContainerAttrs,
   WindowContainerAttrs,
   ChatContainerAttrs,
   CollapseContainerAttrs,
@@ -33,6 +34,129 @@ const ELLIPSIS = "\u2026";
 const RE_CODE_FENCE_OPEN = /^(\s*)(`{3,}|~{3,})(.*)$/;
 const RE_TAB_MARKER = /^\s*@tab(?::active)?\s*(.*)$/i;
 
+// HTML 组件标签正则
+type HtmlComponentTag = "Card" | "CardGrid" | "CardMasonry" | "RepoCard" | "LinkCard" | "ImageCard";
+
+interface HtmlComponentOpen {
+  attrs: string;
+  afterOpen: string;
+  selfClosing: boolean;
+}
+
+interface HtmlComponentBlock {
+  rawContent: string;
+  endLine: number;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function matchHtmlComponentOpen(line: string, tag: HtmlComponentTag): HtmlComponentOpen | null {
+  const name = escapeRegExp(tag);
+  const selfClosing = line.match(new RegExp(`^\\s*<${name}\\b([^>]*)\\/?>\\s*$`, "i"));
+  if (selfClosing && /\/>\s*$/.test(line)) {
+    return {
+      attrs: selfClosing[1] ?? "",
+      afterOpen: "",
+      selfClosing: true
+    };
+  }
+
+  const open = line.match(new RegExp(`^\\s*<${name}\\b([^>]*)>(.*)$`, "i"));
+  if (!open) {
+    return null;
+  }
+
+  return {
+    attrs: open[1] ?? "",
+    afterOpen: open[2] ?? "",
+    selfClosing: false
+  };
+}
+
+function splitAtHtmlComponentClose(line: string, tag: HtmlComponentTag): { before: string } | null {
+  const match = line.match(new RegExp(`^(.*?)<\\/${escapeRegExp(tag)}>\\s*$`, "i"));
+  if (!match) {
+    return null;
+  }
+  return { before: match[1] ?? "" };
+}
+
+function collectHtmlComponentBlock(
+  lines: string[],
+  startLine: number,
+  tag: HtmlComponentTag,
+  open: HtmlComponentOpen
+): HtmlComponentBlock | null {
+  if (open.selfClosing) {
+    return { rawContent: "", endLine: startLine };
+  }
+
+  const content: string[] = [];
+  const firstClose = splitAtHtmlComponentClose(open.afterOpen, tag);
+  if (firstClose) {
+    if (firstClose.before.trim()) {
+      content.push(firstClose.before);
+    }
+    return { rawContent: content.join("\n"), endLine: startLine };
+  }
+  if (open.afterOpen.trim()) {
+    content.push(open.afterOpen);
+  }
+
+  let fenceChar = "";
+  let fenceLength = 0;
+  let sameTagDepth = 0;
+
+  for (let cursor = startLine + 1; cursor < lines.length; cursor += 1) {
+    const current = lines[cursor];
+
+    if (fenceLength > 0) {
+      content.push(current);
+      const closeRegex = new RegExp(`^\\s*${fenceChar}{${fenceLength},}\\s*$`);
+      if (closeRegex.test(current)) {
+        fenceChar = "";
+        fenceLength = 0;
+      }
+      continue;
+    }
+
+    const fenceMatch = current.match(RE_CODE_FENCE_OPEN);
+    if (fenceMatch) {
+      const fence = fenceMatch[2];
+      fenceChar = fence[0];
+      fenceLength = fence.length;
+      content.push(current);
+      continue;
+    }
+
+    const nestedOpen = matchHtmlComponentOpen(current, tag);
+    if (nestedOpen && !nestedOpen.selfClosing) {
+      sameTagDepth += 1;
+      content.push(current);
+      continue;
+    }
+
+    const close = splitAtHtmlComponentClose(current, tag);
+    if (close) {
+      if (sameTagDepth === 0) {
+        if (close.before.trim()) {
+          content.push(close.before);
+        }
+        return { rawContent: content.join("\n"), endLine: cursor };
+      }
+      sameTagDepth -= 1;
+      content.push(current);
+      continue;
+    }
+
+    content.push(current);
+  }
+
+  return null;
+}
+
 function parseAttrValue(text: string, key: string): string | undefined {
   const attrRegex = new RegExp(`${key}=(?:"([^"]*)"|'([^']*)'|([^\\s]+))`, "i");
   const match = text.match(attrRegex);
@@ -41,6 +165,111 @@ function parseAttrValue(text: string, key: string): string | undefined {
   }
 
   return match[1] ?? match[2] ?? match[3] ?? undefined;
+}
+
+function parseLinkCardAttrs(attrsStr: string): LinkCardContainerAttrs {
+  const attrs: LinkCardContainerAttrs = { href: "" };
+  
+  const href = parseAttrValue(attrsStr, "href");
+  if (href) attrs.href = href;
+  
+  const title = parseAttrValue(attrsStr, "title");
+  if (title) attrs.title = title;
+  
+  const icon = parseAttrValue(attrsStr, "icon");
+  if (icon) attrs.icon = icon;
+  
+  const description = parseAttrValue(attrsStr, "description");
+  if (description) attrs.description = description;
+  
+  const target = parseAttrValue(attrsStr, "target");
+  if (target) attrs.target = target;
+  
+  const rel = parseAttrValue(attrsStr, "rel");
+  if (rel) attrs.rel = rel;
+  
+  return attrs;
+}
+
+function parseCardAttrs(attrsStr: string): CardContainerAttrs {
+  const attrs: CardContainerAttrs = {};
+
+  const title = parseAttrValue(attrsStr, "title");
+  if (title) attrs.title = title;
+
+  const icon = parseAttrValue(attrsStr, "icon");
+  if (icon) attrs.icon = icon;
+
+  return attrs;
+}
+
+function parseCardGridAttrs(attrsStr: string): CardGridContainerAttrs {
+  const attrs: CardGridContainerAttrs = {};
+
+  const cols = parseAttrValue(attrsStr, "cols");
+  if (cols) attrs.cols = cols;
+
+  return attrs;
+}
+
+function parseCardMasonryAttrs(attrsStr: string): CardMasonryContainerAttrs {
+  const attrs: CardMasonryContainerAttrs = {};
+
+  const cols = parseAttrValue(attrsStr, "cols");
+  if (cols) attrs.cols = cols;
+
+  const gap = parseAttrValue(attrsStr, "gap");
+  if (gap) attrs.gap = gap;
+
+  return attrs;
+}
+
+function parseRepoCardAttrs(attrsStr: string): RepoCardContainerAttrs | null {
+  const repo = parseAttrValue(attrsStr, "repo");
+  if (!repo) return null;
+
+  const attrs: RepoCardContainerAttrs = { repo };
+
+  const provider = parseAttrValue(attrsStr, "provider");
+  if (provider === "github" || provider === "gitee") attrs.provider = provider;
+
+  if (/(^|\s)fullname(?:\s|=|$)/i.test(attrsStr)) {
+    const fullname = parseAttrValue(attrsStr, "fullname");
+    attrs.fullname = fullname ? fullname !== "false" : true;
+  }
+
+  return attrs;
+}
+
+function parseImageCardAttrs(attrsStr: string): ImageCardContainerAttrs {
+  const attrs: ImageCardContainerAttrs = { image: "" };
+  
+  const image = parseAttrValue(attrsStr, "image");
+  if (image) attrs.image = image;
+  
+  const title = parseAttrValue(attrsStr, "title");
+  if (title) attrs.title = title;
+  
+  const description = parseAttrValue(attrsStr, "description");
+  if (description) attrs.description = description;
+  
+  const href = parseAttrValue(attrsStr, "href");
+  if (href) attrs.href = href;
+  
+  const author = parseAttrValue(attrsStr, "author");
+  if (author) attrs.author = author;
+  
+  const date = parseAttrValue(attrsStr, "date");
+  if (date) attrs.date = date;
+  
+  const width = parseAttrValue(attrsStr, "width");
+  if (width) attrs.width = width;
+  
+  const center = parseAttrValue(attrsStr, "center");
+  if (center !== undefined) attrs.center = center !== "false";
+  else if (/(^|\s)center(\s|$)/.test(attrsStr)) attrs.center = true;
+  
+  return attrs;
 }
 
 export function normalizeCodeTreePath(value: string): string {
@@ -151,7 +380,7 @@ export function parseFileTreeNodeInfo(info: string): FileTreeNodeProps {
 }
 
 export function parseContainerHeader(line: string, fallbackIcon: FileTreeIconMode): FileTreeContainerAttrs | null {
-  const match = line.trim().match(/^:::\s*file-tree\b(.*)$/i);
+  const match = line.trim().match(/^:{3,}\s*file-tree\b(.*)$/i);
   if (!match) {
     return null;
   }
@@ -189,7 +418,7 @@ export function parseContainerHeader(line: string, fallbackIcon: FileTreeIconMod
 }
 
 export function parseCodeTreeContainerHeader(line: string, fallbackIcon: FileTreeIconMode): CodeTreeContainerAttrs | null {
-  const match = line.trim().match(/^:::\s*code-tree\b(.*)$/i);
+  const match = line.trim().match(/^:{3,}\s*code-tree\b(.*)$/i);
   if (!match) {
     return null;
   }
@@ -231,7 +460,7 @@ export function parseCodeTreeContainerHeader(line: string, fallbackIcon: FileTre
 }
 
 export function parseTabsContainerHeader(line: string): TabsContainerAttrs | null {
-  const match = line.trim().match(/^:::\s*tabs\b(.*)$/i);
+  const match = line.trim().match(/^:{3,}\s*tabs\b(.*)$/i);
   if (!match) {
     return null;
   }
@@ -253,19 +482,19 @@ export function parseTabsContainerHeader(line: string): TabsContainerAttrs | nul
 }
 
 export function isFileTreeOpenMarker(text: string): boolean {
-  return /^:::\s*file-tree\b/i.test(text.trim());
+  return /^:{3,}\s*file-tree\b/i.test(text.trim());
 }
 
 export function isCodeTreeOpenMarker(text: string): boolean {
-  return /^:::\s*code-tree\b/i.test(text.trim());
+  return /^:{3,}\s*code-tree\b/i.test(text.trim());
 }
 
 export function isTabsOpenMarker(text: string): boolean {
-  return /^:::\s*tabs\b/i.test(text.trim());
+  return /^:{3,}\s*tabs\b/i.test(text.trim());
 }
 
 export function parseCodeTabsContainerHeader(line: string): CodeTabsContainerAttrs | null {
-  const match = line.trim().match(/^:::\s*code-tabs\b(.*)$/i);
+  const match = line.trim().match(/^:{3,}\s*code-tabs\b(.*)$/i);
   if (!match) {
     return null;
   }
@@ -286,7 +515,7 @@ export function parseCodeTabsContainerHeader(line: string): CodeTabsContainerAtt
 }
 
 export function isCodeTabsOpenMarker(text: string): boolean {
-  return /^:::\s*code-tabs\b/i.test(text.trim());
+  return /^:{3,}\s*code-tabs\b/i.test(text.trim());
 }
 
 export function isStepsOpenMarker(text: string): boolean {
@@ -857,7 +1086,7 @@ const RE_DEFAULT_ICON_FALLBACK: FileTreeIconMode = "colored";
 const CODE_TREE_EMBED_RE_LINE = /^\s*@\[code-tree([^\]]*)\]\(([^)]*)\)\s*$/i;
 
 interface ContainerHeaderInfo {
-  type: "file-tree" | "code-tree" | "tabs" | "code-tabs" | "steps" | "prompt" | "collapse" | "card" | "card-grid" | "card-masonry" | "repo-card" | "link-card" | "image-card" | "field" | "field-group" | "flex" | "window" | "chat" | "timeline";
+  type: "file-tree" | "code-tree" | "tabs" | "code-tabs" | "steps" | "prompt" | "collapse" | "card" | "card-grid" | "card-masonry" | "repo-card" | "link-card" | "image-card" | "field" | "field-group" | "flex" | "align" | "window" | "chat" | "timeline";
   markerLen: number;
   attrs:
     | FileTreeContainerAttrs
@@ -875,6 +1104,7 @@ interface ContainerHeaderInfo {
     | FieldContainerAttrs
     | FieldGroupContainerAttrs
     | FlexContainerAttrs
+    | AlignContainerAttrs
     | WindowContainerAttrs
     | ChatContainerAttrs
     | TimelineContainerAttrs;
@@ -1185,6 +1415,49 @@ export function parseAllBlocks(
 
     const header = detectContainerOpen(line, fallbackIcon);
     if (!header) {
+      const htmlComponents = [
+        { tag: "CardGrid", type: "card-grid", attrs: parseCardGridAttrs },
+        { tag: "CardMasonry", type: "card-masonry", attrs: parseCardMasonryAttrs },
+        { tag: "Card", type: "card", attrs: parseCardAttrs },
+        { tag: "RepoCard", type: "repo-card", attrs: parseRepoCardAttrs },
+        { tag: "LinkCard", type: "link-card", attrs: parseLinkCardAttrs },
+        { tag: "ImageCard", type: "image-card", attrs: parseImageCardAttrs }
+      ] as const;
+
+      let matchedHtmlComponent = false;
+      for (const component of htmlComponents) {
+        const open = matchHtmlComponentOpen(line, component.tag);
+        if (!open) {
+          continue;
+        }
+
+        const attrs = component.attrs(open.attrs);
+        if (!attrs) {
+          continue;
+        }
+
+        const collected = collectHtmlComponentBlock(lines, i, component.tag, open);
+        if (!collected) {
+          continue;
+        }
+
+        blocks.push({
+          type: component.type,
+          startLine: i,
+          endLine: collected.endLine,
+          rawContent: collected.rawContent,
+          markerLen: 0,
+          attrs
+        } as ParsedBlock);
+        i = collected.endLine + 1;
+        matchedHtmlComponent = true;
+        break;
+      }
+
+      if (matchedHtmlComponent) {
+        continue;
+      }
+
       i += 1;
       continue;
     }

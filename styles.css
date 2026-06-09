@@ -198,13 +198,33 @@
   transition: color 150ms ease, transform 120ms ease;
 }
 
-.obsidian-vuepress-file-tree .ft-icon.ft-icon-offline {
+.obsidian-vuepress-file-tree .ft-icon.ft-icon-offline,
+.obsidian-vuepress-file-tree .ft-icon.ft-icon-online {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.obsidian-vuepress-file-tree .ft-icon.ft-icon-offline > svg {
+.obsidian-vuepress-file-tree .ft-icon.ft-icon-offline > svg,
+.obsidian-vuepress-file-tree .ft-icon.ft-icon-online > svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.vp-icon.ft-icon-offline,
+.vp-icon.ft-icon-online {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  color: currentColor;
+  vertical-align: -0.125em;
+}
+
+.vp-icon.ft-icon-offline > svg,
+.vp-icon.ft-icon-online > svg {
   width: 100%;
   height: 100%;
   overflow: visible;
@@ -351,6 +371,11 @@
   margin-block: 0;
 }
 
+.markdown-reading-view .markdown-preview-section.plume-has-block
+  + .markdown-preview-section.plume-has-block {
+  margin-top: 10px;
+}
+
 .markdown-reading-view .plume-has-block > :is(
   .obsidian-vuepress-file-tree,
   .obsidian-vuepress-code-tree,
@@ -358,6 +383,7 @@
   .vp-tabs,
   .vp-steps,
   .vp-custom-container,
+  .vp-card-wrapper,
   .vp-card-grid,
   .vp-card-masonry,
   .vp-repo-card,
@@ -1963,24 +1989,79 @@ h6 .vp-badge {
   left: 0;
 }
 
-.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line.has-icon .vp-timeline-point .vp-icon,
-.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line.has-icon .vp-timeline-point img.vp-icon {
-  width: 14px;
-  height: 14px;
-  color: var(--vp-timeline-c-icon);
+/* ===== Plot (隐秘文本) ===== */
+.vp-plot {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.obsidian-vuepress-timeline .vp-timeline-item > .vp-timeline-line.has-icon .vp-timeline-point svg {
-  width: 14px;
-  height: 14px;
+.vp-plot-content {
+  position: relative;
+  display: inline-block;
+  user-select: none;
 }
 
-.obsidian-vuepress-timeline .vp-timeline-item .vp-timeline-container {
-  width: max-content;
-  max-width: 100%;
-  font-size: var(--font-ui-medium);
-  line-height: 1.5;
-  color: var(--vp-timeline-c-text);
+/* 遮罩层效果 */
+.vp-plot-content.vp-plot-mask {
+  background-color: var(--text-normal);
+  color: var(--text-normal);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.vp-plot-content.vp-plot-mask::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, 
+    var(--text-normal) 25%, 
+    transparent 25%, 
+    transparent 50%, 
+    var(--text-normal) 50%, 
+    var(--text-normal) 75%, 
+    transparent 75%, 
+    transparent
+  );
+  background-size: 8px 8px;
+  opacity: 0.3;
+  border-radius: 4px;
+}
+
+/* 模糊效果 */
+.vp-plot-content.vp-plot-blur {
+  filter: blur(4px);
+  opacity: 0.8;
+}
+
+/* 悬停触发 */
+.vp-plot[data-vp-plot-trigger="hover"]:hover .vp-plot-content {
+  background-color: transparent;
+  color: var(--text-normal);
+  filter: none;
+  opacity: 1;
+  user-select: text;
+}
+
+.vp-plot[data-vp-plot-trigger="hover"]:hover .vp-plot-content.vp-plot-mask::before {
+  display: none;
+}
+
+/* 点击触发 */
+.vp-plot[data-vp-plot-trigger="click"].vp-plot-revealed .vp-plot-content {
+  background-color: transparent;
+  color: var(--text-normal);
+  filter: none;
+  opacity: 1;
+  user-select: text;
+}
+
+.vp-plot[data-vp-plot-trigger="click"].vp-plot-revealed .vp-plot-content.vp-plot-mask::before {
+  display: none;
 }
 
 .obsidian-vuepress-timeline .vp-timeline-item.horizontal .vp-timeline-container {
@@ -2181,13 +2262,15 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   height: 16px;
 }
 
-.vp-code-block-title-icon.ft-icon-offline {
+.vp-code-block-title-icon.ft-icon-offline,
+.vp-code-block-title-icon.ft-icon-online {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.vp-code-block-title-icon.ft-icon-offline > svg {
+.vp-code-block-title-icon.ft-icon-offline > svg,
+.vp-code-block-title-icon.ft-icon-online > svg {
   width: 16px;
   height: 16px;
   overflow: visible;

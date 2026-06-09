@@ -5,6 +5,8 @@ import {
   MarkdownRenderChild,
   MarkdownRenderer
 } from "obsidian";
+import { applyVuepressMarkdownTransforms } from "../render/markdown-transforms";
+import { processIconifyIcons } from "../render/iconify-online";
 
 export interface PlumeMarkdownContext {
   app: App;
@@ -39,7 +41,8 @@ export async function renderPlumeMarkdown(
   markdown: string,
   ctx: PlumeMarkdownContext
 ): Promise<void> {
-  if (!markdown.trim()) {
+  const source = applyVuepressMarkdownTransforms(markdown);
+  if (!source.trim()) {
     return;
   }
 
@@ -54,7 +57,7 @@ export async function renderPlumeMarkdown(
   const child = attachRenderChild(host, ctx);
 
   try {
-    await MarkdownRenderer.render(ctx.app, markdown, host, ctx.sourcePath, child);
+    await MarkdownRenderer.render(ctx.app, source, host, ctx.sourcePath, child);
     if (container.dataset.plumeMdToken !== token) {
       host.remove();
       return;
@@ -65,13 +68,14 @@ export async function renderPlumeMarkdown(
       container.appendChild(host.firstChild);
     }
     host.remove();
+    await processIconifyIcons(container);
   } catch {
     if (container.dataset.plumeMdToken !== token) {
       host.remove();
       return;
     }
     container.empty();
-    container.textContent = markdown;
+    container.textContent = source;
   }
 }
 
@@ -84,7 +88,8 @@ export async function renderPlumeMarkdownInto(
   markdown: string,
   ctx: PlumeMarkdownContext
 ): Promise<void> {
-  if (!markdown.trim()) {
+  const source = applyVuepressMarkdownTransforms(markdown);
+  if (!source.trim()) {
     return;
   }
 
@@ -99,7 +104,7 @@ export async function renderPlumeMarkdownInto(
   const child = attachRenderChild(host, ctx);
 
   try {
-    await MarkdownRenderer.render(ctx.app, markdown, host, ctx.sourcePath, child);
+    await MarkdownRenderer.render(ctx.app, source, host, ctx.sourcePath, child);
     if (container.dataset.plumeMdToken !== token) {
       host.remove();
       return;
@@ -108,12 +113,13 @@ export async function renderPlumeMarkdownInto(
       container.insertBefore(host.firstChild, host);
     }
     host.remove();
+    await processIconifyIcons(container);
   } catch {
     if (container.dataset.plumeMdToken !== token) {
       host.remove();
       return;
     }
     container.empty();
-    container.textContent = markdown;
+    container.textContent = source;
   }
 }

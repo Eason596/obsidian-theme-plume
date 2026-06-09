@@ -2,6 +2,7 @@ import { setIcon } from "obsidian";
 import { resolveNodeIcon } from "../icons";
 import type { FileTreeIconMode, TabItem } from "../types";
 import { hashString } from "../utils/hash";
+import { prepareIconifyIconElement, processIconifyIcons } from "./iconify-online";
 import {
   attachTabsKeyboardNav,
   getTabStoreValue,
@@ -63,9 +64,9 @@ function decorateCodeTabButton(
   iconHost.className = "vp-code-tab-icon ft-icon";
   const desc = resolveNodeIcon(tab.title, "file", false, mode);
   if (desc.colorClass) iconHost.classList.add(desc.colorClass);
-  if (desc.offlineSvg) {
-    iconHost.classList.add("ft-icon-offline");
-    iconHost.innerHTML = desc.offlineSvg;
+  if (desc.iconifyId) {
+    prepareIconifyIconElement(iconHost, desc.iconifyId);
+    void processIconifyIcons(iconHost);
   } else {
     setIcon(iconHost, desc.icon);
   }
