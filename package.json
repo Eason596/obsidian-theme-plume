@@ -1,6 +1,6 @@
 {
   "name": "theme-plume",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "VuePress Theme Plume markdown extensions for Obsidian.",
   "license": "MIT",

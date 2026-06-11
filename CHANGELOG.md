@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3
+
+### Fixed
+
+- Renamed the settings heading so it no longer repeats the plugin name.
+
 ## 1.0.2
 
 ### Fixed

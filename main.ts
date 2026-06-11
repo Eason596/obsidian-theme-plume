@@ -654,7 +654,7 @@ class PlumeSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl).setName("Theme Plume").setHeading();
+    new Setting(containerEl).setName("Rendering").setHeading();
     containerEl.createEl("p", {
       text: "VuePress Theme Plume markdown extensions for Obsidian reading view."
     });
