@@ -1,9 +1,9 @@
 {
-  "id": "obsidian-plume",
-  "name": "Obsidian Plume",
-  "version": "0.2.0",
+  "id": "theme-plume",
+  "name": "Theme Plume",
+  "version": "1.0.0",
   "minAppVersion": "1.5.0",
   "description": "Render VuePress Theme Plume markdown containers (file-tree, tabs, steps, cards, and more) in Obsidian.",
-  "author": "JY",
+  "author": "Eason596",
   "isDesktopOnly": false
 }

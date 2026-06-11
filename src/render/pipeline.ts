@@ -66,7 +66,7 @@ export async function renderPlumeBlocksInto(
     try {
       await invokeBlockRenderer(host, block, ctx);
     } catch (err) {
-      console.error("[obsidian-plume] block render failed", err);
+      console.error("[theme-plume] block render failed", err);
       host.textContent = block.rawContent;
     }
     while (host.firstChild) {
@@ -193,7 +193,7 @@ export async function renderInnerMarkdown(
       await invokeBlockRenderer(node, block, ctx);
       decorateSubtreeCodeFences(node, block.rawContent, ctx.defaultIconMode);
     } catch (err) {
-      console.error("[obsidian-plume] block render failed", err);
+      console.error("[theme-plume] block render failed", err);
       if (ctx.settings?.debugRender) {
         node.createEl("p", { cls: "plume-render-error", text: `Failed: ${block.type}` });
       }

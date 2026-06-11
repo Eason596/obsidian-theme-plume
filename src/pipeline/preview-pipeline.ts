@@ -87,7 +87,7 @@ export class PreviewPipeline {
         }
         delete fresh.el.dataset.plumeBlockKey;
         void this.processSection(fresh.el, fresh.ctx).catch((err) => {
-          console.error("[obsidian-plume] leading refresh failed", err);
+          console.error("[theme-plume] leading refresh failed", err);
         });
       });
     }
@@ -184,7 +184,7 @@ export class PreviewPipeline {
       await renderInnerMarkdown(rootElement, slice, renderCtx);
       this.options.clearDocumentDirty?.(ctx.sourcePath);
     } catch (err) {
-      console.error("[obsidian-plume] section render failed", err);
+      console.error("[theme-plume] section render failed", err);
       const errEl = rootElement.createDiv({ cls: "plume-render-error" });
       errEl.createEl("p", {
         text: "Obsidian Plume: block render failed. See developer console for details."
@@ -241,7 +241,7 @@ export class PreviewPipeline {
       }
       delete fresh.el.dataset.plumeBlockKey;
       void this.processSection(fresh.el, fresh.ctx).catch((err) => {
-        console.error("[obsidian-plume] leading re-render failed", err);
+        console.error("[theme-plume] leading re-render failed", err);
       });
     });
   }

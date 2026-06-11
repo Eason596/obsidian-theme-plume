@@ -1,11 +1,11 @@
-# Obsidian Plume
+# Theme Plume
 
 在 Obsidian **阅读视图**中渲染 [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume) 的 Markdown 容器语法（`::: file-tree`、`::: tabs`、`::: steps` 等）。
 
 | | |
 |---|---|
-| 插件 ID | `obsidian-plume` |
-| 版本 | 0.2.0（见 `manifest.json`） |
+| 插件 ID | `theme-plume` |
+| 版本 | 1.0.0（见 `manifest.json`） |
 | 最低 Obsidian | 1.5.0 |
 | 协议 | [MIT](./LICENSE)（上游致谢见 [NOTICE](./NOTICE)） |
 
@@ -31,6 +31,15 @@
 
 ## 安装
 
+### 社区插件（推荐）
+
+1. 在 Obsidian 中打开 **设置 → 社区插件 → 浏览**，搜索 **Theme Plume**。
+2. 安装并启用插件。
+
+若尚未出现在社区目录，可先用下方手动安装或 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 从 GitHub 安装。
+
+**提交社区插件**（维护者）：登录 [community.obsidian.md](https://community.obsidian.md) → **Plugins → New plugin** → 填写 `https://github.com/Eason596/obsidian-theme-plume`。首次提交前需已有与 `manifest.json` 中 `version` 一致的 [GitHub Release](https://github.com/Eason596/obsidian-theme-plume/releases)（含 `main.js`、`manifest.json`、`styles.css`）。
+
 ### 手动安装（开发构建）
 
 ```bash
@@ -40,17 +49,32 @@ npm install
 npm run build
 ```
 
-将**整个目录**复制到库内：
+将以下文件复制到库内插件目录：
 
 ```text
-<vault>/.obsidian/plugins/obsidian-plume/
+<vault>/.obsidian/plugins/theme-plume/
+  manifest.json
+  main.js
+  styles.css
 ```
 
-目录内需包含至少：`manifest.json`、`main.js`、`styles.css`（`main.js` 由 `npm run build` 生成，未提交到 Git）。
+`main.js` 由 `npm run build` 生成，未提交到 Git。
 
-在 **设置 → 社区插件** 中启用 **Obsidian Plume**。
+在 **设置 → 社区插件** 中启用 **Theme Plume**。
 
-> **升级提示**：插件 ID 为 `obsidian-plume`（旧 ID `vuepress-file-tree` 已废弃）。请删除旧插件目录，避免重复加载。
+> **升级提示**：插件 ID 现为 `theme-plume`。若曾安装 `obsidian-plume` 或 `vuepress-file-tree`，请删除旧插件目录后再安装，避免重复加载。
+
+## 网络使用说明
+
+本插件**默认可离线**使用大部分功能。以下能力仅在启用时访问网络（无服务端遥测、无账号要求）：
+
+| 功能 | 远程服务 | 何时触发 |
+|------|----------|----------|
+| `::: repo-card` | GitHub / Gitee REST API | 渲染含仓库 URL 的 repo-card 块 |
+| 文件树 / 代码树 `colored` 图标 | [Iconify API](https://api.iconify.design) | 离线包未覆盖的 Iconify 图标 ID |
+| 卡片 `icon=` 外链图片 | 用户指定的图片 URL | 渲染含 http(s) 图标的卡片 |
+
+可在设置中将 **Default file-tree icon mode** 设为 `simple`，并避免使用 `repo-card`，即可在无网络环境下使用核心容器语法。
 
 ## 支持的语法
 
@@ -98,7 +122,7 @@ export default class ObsidianPlumePlugin extends Plugin {}
 ```
 ````
 
-## 架构（v0.2）
+## 架构（v1.0）
 
 | 模块 | 职责 |
 |------|------|
@@ -121,7 +145,7 @@ export default class ObsidianPlumePlugin extends Plugin {}
 
 ## 设置
 
-**设置 → Obsidian Plume**：
+**设置 → Theme Plume**：
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
@@ -131,14 +155,14 @@ export default class ObsidianPlumePlugin extends Plugin {}
 | Lazy tab panels | 开启 | 仅渲染当前选项卡；当前 tab 在块显示前渲染完成 |
 | Debug render errors | 关闭 | 块渲染失败时在预览中显示简短提示 |
 
-编辑后预览采用 **软刷新**（只重绘 Plume 块，不整页 `rerender`），减轻跳动。异常时可用命令 **Obsidian Plume: Force Refresh Current Preview** 做完整重建。
+编辑后预览采用 **软刷新**（只重绘 Plume 块，不整页 `rerender`），减轻跳动。异常时可用命令 **Theme Plume: Force Refresh Current Preview** 做完整重建。
 
 ## 命令面板
 
 | 命令 | 作用 |
 |------|------|
-| Obsidian Plume: Force Refresh Current Preview | 对当前笔记强制整页重建阅读视图 |
-| Obsidian Plume: Self Check | 显示版本、图标模式、预览窗数量等自检信息 |
+| Theme Plume: Force Refresh Current Preview | 对当前笔记强制整页重建阅读视图 |
+| Theme Plume: Self Check | 显示版本、图标模式、预览窗数量等自检信息 |
 
 ## 开发
 
@@ -162,7 +186,7 @@ npm run build:demo     # 生成 docs/index.html（GitHub Pages 预览）
 
 ## 与 VuePress / Plume 的差异
 
-| 能力 | Obsidian Plume | VuePress Plume |
+| 能力 | Theme Plume | VuePress Plume |
 |------|----------------|----------------|
 | 站点主题、导航、博客、搜索 | 否 | 是 |
 | Markdown 容器与样式 | 是（子集） | 完整 |
@@ -208,6 +232,19 @@ npm run build:demo
 之后每次改 `examples/plume-components.md` 或样式，推送到 `main` 会自动重建；也可本地 `npm run build:demo` 后把 `docs/index.html` 一并提交。
 
 > 预览站用 `marked` 渲染普通 Markdown，与 Obsidian 阅读视图在细节上可能略有差异；Plume 容器样式与 Obsidian 真环境更接近。选项卡、文件树/代码树、折叠手风琴、瀑布流等交互由 `docs/demo-client.js` 在浏览器中启用（静态 HTML 本身不含事件监听）。
+
+## 发布新版本
+
+维护者推送 semver 标签后，GitHub Actions 会自动构建并创建 Release（附件含 `main.js`、`manifest.json`、`styles.css`）：
+
+```bash
+# 1. 更新 manifest.json 与 package.json 中的 version
+# 2. 提交并推送
+git push origin main
+# 3. 打标签并推送（标签须与 manifest version 一致）
+git tag 1.0.1
+git push origin 1.0.1
+```
 
 ## 发布到 GitHub
 

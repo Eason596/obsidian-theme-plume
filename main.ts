@@ -93,19 +93,19 @@ export default class ObsidianPlumePlugin extends Plugin {
     this.addSettingTab(new PlumeSettingTab(this.app, this));
 
     this.addCommand({
-      id: "obsidian-plume-self-check",
-      name: "Obsidian Plume: Self Check",
+      id: "self-check",
+      name: "Theme Plume: Self Check",
       callback: () => {
         const previewCount = document.querySelectorAll(".markdown-preview-view").length;
         new Notice(
-          `Obsidian Plume v${this.manifest.version} loaded. mode=${this.settings.defaultIconMode}, previews=${previewCount}, icons=${getIconIds().length}`
+          `Theme Plume v${this.manifest.version} loaded. mode=${this.settings.defaultIconMode}, previews=${previewCount}, icons=${getIconIds().length}`
         );
       }
     });
 
     this.addCommand({
-      id: "obsidian-plume-force-refresh-preview",
-      name: "Obsidian Plume: Force Refresh Current Preview",
+      id: "force-refresh-preview",
+      name: "Theme Plume: Force Refresh Current Preview",
       callback: () => {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view?.file) {
@@ -114,7 +114,7 @@ export default class ObsidianPlumePlugin extends Plugin {
         }
         this.previewSync.markDirty(view.file.path, view.editor.getValue());
         this.fullRerenderPreviewView(view);
-        new Notice("Obsidian Plume: preview refreshed.");
+        new Notice("Theme Plume: preview refreshed.");
       }
     });
 
@@ -652,7 +652,7 @@ class PlumeSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Obsidian Plume" });
+    containerEl.createEl("h2", { text: "Theme Plume" });
     containerEl.createEl("p", {
       text: "VuePress Theme Plume markdown extensions for Obsidian reading view."
     });

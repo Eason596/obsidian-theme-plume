@@ -86,7 +86,7 @@ export class CodeFenceTitleService {
         view.previewMode.rerender(true);
         this.dirtyPreviewFiles.delete(path);
       } catch (err) {
-        console.error("[obsidian-plume] preview rerender failed", err);
+        console.error("[theme-plume] preview rerender failed", err);
       }
     }
   }

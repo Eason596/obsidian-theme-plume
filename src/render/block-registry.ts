@@ -19,7 +19,7 @@ export async function invokeBlockRenderer(
   ctx: BlockRenderContext
 ): Promise<void> {
   if (!renderBlockImpl) {
-    throw new Error("[obsidian-plume] block renderer not registered");
+    throw new Error("[theme-plume] block renderer not registered");
   }
   await renderBlockImpl(container, block, ctx);
 }
