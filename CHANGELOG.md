@@ -1,10 +1,11 @@
 # Changelog
 
-## 1.0.1
+## 1.0.2
 
 ### Fixed
 
 - Addressed Obsidian community plugin review findings for manifest text, settings headings, DOM safety, inline style usage, iOS-compatible icon parsing, and popout timer compatibility.
+- Kept committed VuePress file-icon rules during CI release builds when upstream source definitions are unavailable.
 
 ### Changed
 

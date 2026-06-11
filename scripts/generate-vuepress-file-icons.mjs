@@ -144,9 +144,12 @@ function writeOutput(rules) {
 }
 
 if (!existsSync(sourcePath)) {
-  const emptyRules = buildEmptyRules();
-  writeOutput(emptyRules);
-  console.warn(`VuePress definitions not found at ${sourcePath}. Generated empty fallback rules.`);
+  if (existsSync(outputPath)) {
+    console.warn(`VuePress definitions not found at ${sourcePath}. Keeping existing generated rules.`);
+    process.exit(0);
+  }
+  writeOutput(buildEmptyRules());
+  console.warn(`VuePress definitions not found at ${sourcePath}. Generated empty fallback rules because no existing output was found.`);
   process.exit(0);
 }
 
