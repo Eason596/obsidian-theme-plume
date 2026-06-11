@@ -9,6 +9,7 @@ import {
   TFolder,
   getIconIds,
   normalizePath,
+  requestUrl,
   type MarkdownPostProcessorContext
 } from "obsidian";
 import {
@@ -17,7 +18,7 @@ import {
   parseFileTreeRawContent
 } from "./src/parser";
 import { renderFileTreeInto, processBadges, processPlots, type BlockRenderContext } from "./src/render";
-import { processIconifyIcons } from "./src/render/iconify-online";
+import { processIconifyIcons, setIconifyRequestUrl } from "./src/render/iconify-online";
 import { PreviewPipeline } from "./src/pipeline/preview-pipeline";
 import { PreviewDocumentSync } from "./src/pipeline/preview-sync";
 import {
@@ -65,10 +66,10 @@ export default class ObsidianPlumePlugin extends Plugin {
   private readonly previewSync = new PreviewDocumentSync();
   private contentEpochByPath = new Map<string, number>();
   private markdownModeByPath = new Map<string, string>();
-  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private flushTimer: number | null = null;
   private flushPath: string | null = null;
-  private modeSyncTimer: ReturnType<typeof setTimeout> | null = null;
-  private layoutModeScanTimer: ReturnType<typeof setTimeout> | null = null;
+  private modeSyncTimer: number | null = null;
+  private layoutModeScanTimer: number | null = null;
   private pipeline!: PreviewPipeline;
 
   private static readonly MODE_SYNC_DELAY_MS = 32;
@@ -79,6 +80,7 @@ export default class ObsidianPlumePlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    setIconifyRequestUrl(requestUrl);
 
     this.pipeline = new PreviewPipeline({
       plugin: this,
@@ -94,7 +96,7 @@ export default class ObsidianPlumePlugin extends Plugin {
 
     this.addCommand({
       id: "self-check",
-      name: "Theme Plume: Self Check",
+      name: "Self Check",
       callback: () => {
         const previewCount = document.querySelectorAll(".markdown-preview-view").length;
         new Notice(
@@ -105,7 +107,7 @@ export default class ObsidianPlumePlugin extends Plugin {
 
     this.addCommand({
       id: "force-refresh-preview",
-      name: "Theme Plume: Force Refresh Current Preview",
+      name: "Force Refresh Current Preview",
       callback: () => {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view?.file) {
@@ -225,15 +227,15 @@ export default class ObsidianPlumePlugin extends Plugin {
 
   onunload(): void {
     if (this.flushTimer !== null) {
-      clearTimeout(this.flushTimer);
+      window.clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
     if (this.modeSyncTimer !== null) {
-      clearTimeout(this.modeSyncTimer);
+      window.clearTimeout(this.modeSyncTimer);
       this.modeSyncTimer = null;
     }
     if (this.layoutModeScanTimer !== null) {
-      clearTimeout(this.layoutModeScanTimer);
+      window.clearTimeout(this.layoutModeScanTimer);
       this.layoutModeScanTimer = null;
     }
     this.parseCacheByPath.clear();
@@ -272,9 +274,9 @@ export default class ObsidianPlumePlugin extends Plugin {
   private scheduleFlushPlumeBlocks(sourcePath: string): void {
     this.flushPath = sourcePath;
     if (this.flushTimer !== null) {
-      clearTimeout(this.flushTimer);
+      window.clearTimeout(this.flushTimer);
     }
-    this.flushTimer = setTimeout(() => {
+    this.flushTimer = window.setTimeout(() => {
       this.flushTimer = null;
       const path = this.flushPath;
       if (!path) {
@@ -299,7 +301,7 @@ export default class ObsidianPlumePlugin extends Plugin {
     PreviewDocumentSync.invalidatePreviewDom(view);
     view.previewMode.set(text, true);
     view.previewMode.rerender(true);
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       this.previewSync.applyScroll(view, path, scrollY);
     });
   }
@@ -333,9 +335,9 @@ export default class ObsidianPlumePlugin extends Plugin {
    */
   private queueLayoutModeScan(): void {
     if (this.layoutModeScanTimer !== null) {
-      clearTimeout(this.layoutModeScanTimer);
+      window.clearTimeout(this.layoutModeScanTimer);
     }
-    this.layoutModeScanTimer = setTimeout(() => {
+    this.layoutModeScanTimer = window.setTimeout(() => {
       this.layoutModeScanTimer = null;
       this.scanMarkdownModeTransitions();
     }, ObsidianPlumePlugin.LAYOUT_MODE_SCAN_MS);
@@ -343,9 +345,9 @@ export default class ObsidianPlumePlugin extends Plugin {
 
   private queueModePreviewSync(): void {
     if (this.modeSyncTimer !== null) {
-      clearTimeout(this.modeSyncTimer);
+      window.clearTimeout(this.modeSyncTimer);
     }
-    this.modeSyncTimer = setTimeout(() => {
+    this.modeSyncTimer = window.setTimeout(() => {
       this.modeSyncTimer = null;
       this.scanMarkdownModeTransitions();
       this.applyPreviewSyncAfterModeChange(0);
@@ -399,8 +401,8 @@ export default class ObsidianPlumePlugin extends Plugin {
 
     if (needsFlush) {
       this.bumpContentEpoch(path);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
           if (enteringPreview) {
             const freshView = this.app.workspace.getLeavesOfType("markdown")
               .map((leaf) => leaf.view)
@@ -434,7 +436,7 @@ export default class ObsidianPlumePlugin extends Plugin {
       return;
     }
 
-    setTimeout(
+    window.setTimeout(
       () => this.applyPreviewSyncAfterModeChange(attempt + 1),
       ObsidianPlumePlugin.MODE_SYNC_RETRY_MS
     );
@@ -652,7 +654,7 @@ class PlumeSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Theme Plume" });
+    new Setting(containerEl).setName("Theme Plume").setHeading();
     containerEl.createEl("p", {
       text: "VuePress Theme Plume markdown extensions for Obsidian reading view."
     });

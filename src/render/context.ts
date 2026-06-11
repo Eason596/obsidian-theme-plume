@@ -54,7 +54,7 @@ export function toBlockRenderContext(
 }
 
 export function triggerPreviewReflow(app: App): void {
-  requestAnimationFrame(() => {
+  window.requestAnimationFrame(() => {
     try {
       app.workspace.trigger("resize");
     } catch {

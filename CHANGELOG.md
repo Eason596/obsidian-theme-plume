@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1
+
+### Fixed
+
+- Addressed Obsidian community plugin review findings for manifest text, settings headings, DOM safety, inline style usage, iOS-compatible icon parsing, and popout timer compatibility.
+
+### Changed
+
+- Added GitHub release artifact attestations for published plugin assets.
+
 ## 0.2.0 (unreleased)
 
 ### Fixed

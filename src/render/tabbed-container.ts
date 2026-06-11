@@ -192,7 +192,6 @@ export async function renderTabbedContainer(
         const isActive = v === value;
         if (isActive) {
           panel.classList.add("active");
-          panel.style.display = "";
           // 切换时总是刷新内容
           panel.empty();
           const tab = tabByValue.get(v);
@@ -200,19 +199,8 @@ export async function renderTabbedContainer(
             void renderPanel(panel, tab.content);
           }
           // 动画：先透明，后淡入
-          panel.style.opacity = "0";
-          panel.style.transform = "translateY(8px)";
-          setTimeout(() => {
-            panel.style.opacity = "1";
-            panel.style.transform = "translateY(0)";
-          }, 10);
         } else {
           panel.classList.remove("active");
-          panel.style.opacity = "0";
-          panel.style.transform = "translateY(8px)";
-          setTimeout(() => {
-            panel.style.display = "none";
-          }, 250);
         }
         panel.setAttribute("aria-hidden", isActive ? "false" : "true");
         panel.setAttribute("aria-expanded", isActive ? "true" : "false");

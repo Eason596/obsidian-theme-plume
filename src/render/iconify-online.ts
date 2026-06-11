@@ -3,6 +3,22 @@ import { normalizeIconifyId } from "../offlineIconify";
 const ICONIFY_API_BASE = "https://api.iconify.design";
 const iconSvgCache = new Map<string, Promise<string | null>>();
 
+interface IconifyRequestResponse {
+  status: number;
+  text: string;
+}
+
+type IconifyRequestUrl = (options: {
+  url: string;
+  method: "GET";
+}) => Promise<IconifyRequestResponse>;
+
+let iconifyRequestUrl: IconifyRequestUrl | null = null;
+
+export function setIconifyRequestUrl(requestUrl: IconifyRequestUrl): void {
+  iconifyRequestUrl = requestUrl;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -37,12 +53,15 @@ async function fetchIconifySvg(iconId: string): Promise<string | null> {
     if (!url) {
       return null;
     }
+    if (!iconifyRequestUrl) {
+      return null;
+    }
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
+      const response = await iconifyRequestUrl({ url, method: "GET" });
+      if (response.status < 200 || response.status >= 300) {
         return null;
       }
-      const svg = await response.text();
+      const svg = response.text;
       return /^\s*<svg[\s>]/i.test(svg) ? svg : null;
     } catch {
       return null;
@@ -68,6 +87,16 @@ export function prepareIconifyIconElement(element: HTMLElement, iconId: string):
   element.dataset.vpIcon = normalized;
   element.setAttribute("aria-hidden", "true");
   element.classList.add("ft-icon-online");
+}
+
+function appendSvgMarkup(element: HTMLElement, svg: string): boolean {
+  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const svgElement = parsed.documentElement;
+  if (svgElement.nodeName.toLowerCase() !== "svg") {
+    return false;
+  }
+  element.appendChild(element.ownerDocument.importNode(svgElement, true));
+  return true;
 }
 
 export async function processIconifyIcons(rootElement: HTMLElement): Promise<void> {
@@ -96,7 +125,10 @@ export async function processIconifyIcons(rootElement: HTMLElement): Promise<voi
     }
 
     element.empty();
-    element.innerHTML = svg;
+    if (!appendSvgMarkup(element, svg)) {
+      element.dataset.vpIconFailed = "1";
+      return;
+    }
     element.dataset.vpIconLoaded = "1";
     delete element.dataset.vpIconFailed;
   }));

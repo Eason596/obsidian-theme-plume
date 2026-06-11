@@ -79,7 +79,7 @@ function applyCodeTitleIcon(
   if (desc.colorClass) {
     host.classList.add(desc.colorClass);
   }
-  host.innerHTML = "";
+  host.empty();
   if (desc.iconifyId) {
     prepareIconifyIconElement(host, desc.iconifyId);
     void processIconifyIcons(host);

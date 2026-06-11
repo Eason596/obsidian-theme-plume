@@ -32,20 +32,22 @@ function resolveInlineIcon(content: string): ResolvedInlineIcon | null {
   let size: string | undefined;
   let color: string | undefined;
 
-  const cleaned = content
-    .replace(/^(iconify|iconfont|fontawesome)\s+/i, (_matched, value: string) => {
-      provider = value.toLowerCase();
-      return "";
-    })
-    .replace(/(?<=\s|^)=(.+?)(?:\s|$)/, (_matched, value: string) => {
-      size = value;
-      return " ";
-    })
-    .replace(/(?<=\s|^)\/(.+?)(?:\s|$)/, (_matched, value: string) => {
-      color = value;
-      return " ";
-    })
-    .trim();
+  const parts = content.trim().split(/\s+/).filter(Boolean);
+  if (/^(iconify|iconfont|fontawesome)$/i.test(parts[0] ?? "")) {
+    provider = (parts.shift() ?? provider).toLowerCase();
+  }
+
+  const nameParts: string[] = [];
+  for (const part of parts) {
+    if (part.startsWith("=")) {
+      size = part.slice(1);
+    } else if (part.startsWith("/")) {
+      color = part.slice(1);
+    } else {
+      nameParts.push(part);
+    }
+  }
+  const cleaned = nameParts.join(" ").trim();
 
   if (provider !== "iconify") {
     return null;

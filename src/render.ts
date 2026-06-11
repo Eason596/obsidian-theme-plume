@@ -160,8 +160,7 @@ async function copyToClipboard(text: string): Promise<void> {
 
   const textarea = document.createElement("textarea");
   textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
+  textarea.classList.add("plume-clipboard-fallback");
   document.body.appendChild(textarea);
   textarea.select();
   document.execCommand("copy");
@@ -563,7 +562,7 @@ export function renderFileTreeInto(container: HTMLElement, options: RenderTreeOp
         }
 
         icon.classList.remove("ft-icon-online");
-        icon.innerHTML = "";
+        icon.empty();
         setIcon(icon, iconDescriptor.icon);
       };
 
@@ -574,10 +573,10 @@ export function renderFileTreeInto(container: HTMLElement, options: RenderTreeOp
 
         if (expanded) {
           info.classList.add("expanded");
-          group.style.display = "";
+          group.hidden = false;
         } else {
           info.classList.remove("expanded");
-          group.style.display = "none";
+          group.hidden = true;
         }
 
         applyIcon();
@@ -835,7 +834,7 @@ export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTr
         }
 
         icon.classList.remove("ft-icon-online");
-        icon.innerHTML = "";
+        icon.empty();
         setIcon(icon, iconDescriptor.icon);
       };
 
@@ -846,10 +845,10 @@ export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTr
 
         if (expanded) {
           info.classList.add("expanded");
-          group.style.display = "";
+          group.hidden = false;
         } else {
           info.classList.remove("expanded");
-          group.style.display = "none";
+          group.hidden = true;
         }
 
         applyIcon();
@@ -1502,7 +1501,7 @@ async function renderCardMasonryBlock(
       for (let i = 0; i < N; i += 1) {
         const col = document.createElement("div");
         col.className = "card-masonry-item";
-        col.style.gap = `${gap}px`;
+        col.style.setProperty("--vp-card-masonry-gap", `${gap}px`);
         cols.push(col);
         wrapper.appendChild(col);
       }
@@ -1546,7 +1545,7 @@ async function renderCardMasonryBlock(
     if (width <= 0) {
       layoutAttempts += 1;
       if (layoutAttempts < 40) {
-        requestAnimationFrame(layout);
+        window.requestAnimationFrame(layout);
       } else {
         distribute(fixedCols ?? 1);
       }
@@ -1562,7 +1561,7 @@ async function renderCardMasonryBlock(
       return;
     }
     scheduled = true;
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       scheduled = false;
       layout();
     });
@@ -1625,6 +1624,15 @@ const REPO_ICONS = {
     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M4.5 13.5h7M8.01 1v12.06M1.5 3.5h3l1.5-1h4l1.5 1h3M.5 10L3 4.48L5.5 10C4 11 2 11 .5 10m10 0L13 4.48L15.5 10c-1.5 1-3.5 1-5 0"/></svg>'
 };
 
+function appendSvgMarkup(host: HTMLElement, svg: string): void {
+  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const svgElement = parsed.documentElement;
+  if (svgElement.nodeName.toLowerCase() !== "svg") {
+    return;
+  }
+  host.appendChild(host.ownerDocument.importNode(svgElement, true));
+}
+
 function loadRepoCardCache(): Record<string, { info: RepoCardInfo; updatedAt: number }> {
   try {
     const raw = window.localStorage.getItem(REPO_CARD_CACHE_KEY);
@@ -1685,7 +1693,7 @@ async function renderRepoCardBlock(
 
   const nameRow = wrapper.createEl("p", { cls: "repo-name" });
   const providerIcon = nameRow.createSpan({ cls: `repo-provider-icon repo-provider-${provider}` });
-  providerIcon.innerHTML = REPO_ICONS[provider];
+  appendSvgMarkup(providerIcon, REPO_ICONS[provider]);
   const linkWrap = nameRow.createSpan({ cls: "repo-link" });
   const link = linkWrap.createEl("a", {
     href: fallbackUrl,
@@ -1712,25 +1720,25 @@ async function renderRepoCardBlock(
     if (data.language) {
       const p = info.createEl("p");
       const dot = p.createSpan({ cls: "repo-language" });
-      if (data.languageColor) dot.style.backgroundColor = data.languageColor;
+      if (data.languageColor) dot.style.setProperty("--repo-language-color", data.languageColor);
       p.createSpan({ text: data.language });
     }
     {
       const p = info.createEl("p", { attr: { title: `Stars: ${data.stars}` } });
       const icon = p.createSpan({ cls: "repo-stat-icon" });
-      icon.innerHTML = REPO_ICONS.star;
+      appendSvgMarkup(icon, REPO_ICONS.star);
       p.createSpan({ text: String(convertThousand(data.stars)) });
     }
     {
       const p = info.createEl("p", { attr: { title: `Forks: ${data.forks}` } });
       const icon = p.createSpan({ cls: "repo-stat-icon" });
-      icon.innerHTML = REPO_ICONS.fork;
+      appendSvgMarkup(icon, REPO_ICONS.fork);
       p.createSpan({ text: String(convertThousand(data.forks)) });
     }
     if (data.license) {
       const p = info.createEl("p", { attr: { title: `License: ${data.license.name}` } });
       const icon = p.createSpan({ cls: "repo-stat-icon" });
-      icon.innerHTML = REPO_ICONS.license;
+      appendSvgMarkup(icon, REPO_ICONS.license);
       p.createSpan({ text: data.license.name });
     }
   };
@@ -1833,7 +1841,7 @@ async function renderLinkCardBlock(
   }
 
   const arrow = wrapper.createSpan({ cls: "vp-link-card-arrow" });
-  arrow.innerHTML = LINK_CARD_ARROW_SVG;
+  appendSvgMarkup(arrow, LINK_CARD_ARROW_SVG);
 }
 
 /* ===== ImageCard ===== */
@@ -1881,7 +1889,8 @@ async function renderImageCardBlock(
   });
   if (attrs.width) {
     const w = /^\d+$/.test(attrs.width.trim()) ? `${attrs.width.trim()}px` : attrs.width;
-    wrapper.style.width = w;
+    wrapper.classList.add("has-custom-width");
+    wrapper.style.setProperty("--vp-image-card-width", w);
   }
 
   const imgContainer = wrapper.createDiv({ cls: "image-container" });
@@ -1993,32 +2002,29 @@ function normalizeFlexGap(raw: string | undefined): string {
 }
 
 function applyFlexLayoutStyles(wrapper: HTMLElement, attrs: FlexContainerAttrs): void {
-  wrapper.style.display = "flex";
-  wrapper.style.width = "100%";
-  wrapper.style.boxSizing = "border-box";
-  wrapper.style.gap = normalizeFlexGap(attrs.gap);
+  wrapper.style.setProperty("--vp-flex-gap", normalizeFlexGap(attrs.gap));
 
   if (attrs.align === "start") {
-    wrapper.style.alignItems = "flex-start";
+    wrapper.classList.add("align-start");
   } else if (attrs.align === "end") {
-    wrapper.style.alignItems = "flex-end";
+    wrapper.classList.add("align-end");
   } else if (attrs.align === "center") {
-    wrapper.style.alignItems = "center";
+    wrapper.classList.add("align-center");
   }
 
   if (attrs.justify === "between") {
-    wrapper.style.justifyContent = "space-between";
+    wrapper.classList.add("justify-between");
   } else if (attrs.justify === "around") {
-    wrapper.style.justifyContent = "space-around";
+    wrapper.classList.add("justify-around");
   } else if (attrs.justify === "center") {
-    wrapper.style.justifyContent = "center";
+    wrapper.classList.add("justify-center");
   }
 
   if (attrs.column) {
-    wrapper.style.flexDirection = "column";
+    wrapper.classList.add("is-column");
   }
   if (attrs.wrap) {
-    wrapper.style.flexWrap = "wrap";
+    wrapper.classList.add("is-wrap");
   }
 }
 
@@ -2067,16 +2073,11 @@ function normalizeFlexChildren(wrapper: HTMLElement, attrs: FlexContainerAttrs):
 
   for (const child of children) {
     if (isRow) {
-      child.style.flex = "1 1 0";
-      child.style.minWidth = "0";
-      child.style.maxWidth = "100%";
+      child.classList.add("vp-flex-child-row");
     } else {
-      child.style.flex = "0 0 auto";
-      child.style.width = "100%";
-      child.style.maxWidth = "100%";
+      child.classList.add("vp-flex-child-column");
     }
-    child.style.margin = "0";
-    child.style.boxSizing = "border-box";
+    child.classList.add("vp-flex-child");
   }
 }
 
@@ -2131,14 +2132,14 @@ async function renderAlignBlock(
   // 设置对齐样式
   switch (attrs.align) {
     case "center":
-      wrapper.style.textAlign = "center";
+      wrapper.classList.add("align-center");
       break;
     case "right":
-      wrapper.style.textAlign = "right";
+      wrapper.classList.add("align-right");
       break;
     case "left":
     default:
-      wrapper.style.textAlign = "left";
+      wrapper.classList.add("align-left");
       break;
   }
 
@@ -2528,7 +2529,7 @@ function paintObsidianIcon(span: HTMLElement, iconId: string): void {
   if (span.isConnected) {
     apply();
   } else {
-    requestAnimationFrame(apply);
+    window.requestAnimationFrame(apply);
   }
 }
 
@@ -2719,13 +2720,13 @@ function buildBadgeSpan(opts: {
   span.className = `vp-badge ${cls}`;
   span.textContent = opts.text;
   if (opts.color) {
-    span.style.color = opts.color;
+    span.style.setProperty("--vp-badge-custom-color", opts.color);
   }
   if (opts.bgColor) {
-    span.style.backgroundColor = opts.bgColor;
+    span.style.setProperty("--vp-badge-custom-bg", opts.bgColor);
   }
   if (opts.borderColor) {
-    span.style.borderColor = opts.borderColor;
+    span.style.setProperty("--vp-badge-custom-border", opts.borderColor);
   }
   if (!BADGE_TYPES.has(cls) && !opts.color && !opts.bgColor && !opts.borderColor) {
     span.classList.add("tip");

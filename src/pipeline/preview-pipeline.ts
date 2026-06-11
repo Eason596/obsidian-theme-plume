@@ -199,7 +199,7 @@ export class PreviewPipeline {
     if (!el.querySelector(".vp-card-masonry, .vp-card-grid")) {
       return;
     }
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       if (!el.isConnected) {
         return;
       }
@@ -249,14 +249,6 @@ export class PreviewPipeline {
   private absorbSection(el: HTMLElement): void {
     el.empty();
     el.classList.add(HIDDEN_SECTION_CLASS);
-    el.style.display = "";
-    el.style.height = "0";
-    el.style.minHeight = "0";
-    el.style.margin = "0";
-    el.style.padding = "0";
-    el.style.overflow = "hidden";
-    el.style.visibility = "hidden";
-    el.style.pointerEvents = "none";
     delete el.dataset.plumeBlockKey;
     el.classList.remove("plume-has-block");
   }
@@ -264,14 +256,6 @@ export class PreviewPipeline {
   private unhideSection(el: HTMLElement): void {
     if (el.classList.contains(HIDDEN_SECTION_CLASS)) {
       el.classList.remove(HIDDEN_SECTION_CLASS);
-      el.style.display = "";
-      el.style.height = "";
-      el.style.minHeight = "";
-      el.style.margin = "";
-      el.style.padding = "";
-      el.style.overflow = "";
-      el.style.visibility = "";
-      el.style.pointerEvents = "";
     }
     delete el.dataset.plumeBlockKey;
     el.classList.remove("plume-has-block");

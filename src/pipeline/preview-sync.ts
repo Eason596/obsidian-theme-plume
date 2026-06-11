@@ -74,9 +74,9 @@ export class PreviewDocumentSync {
       this.scrollByPath.set(sourcePath, scrollY);
     };
     apply();
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       apply();
-      requestAnimationFrame(apply);
+      window.requestAnimationFrame(apply);
     });
     window.setTimeout(apply, 50);
     window.setTimeout(apply, 150);
