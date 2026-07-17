@@ -752,7 +752,7 @@ npm run build
 
 | 名称 | 版本 | 说明 |
 | ---- | ---- | ---- |
-| Theme Plume | 1.1.0 | Obsidian 插件 |
+| Theme Plume | 1.1.1 | Obsidian 插件 |
 | VuePress Plume | — | 上游主题 |
 
 :::

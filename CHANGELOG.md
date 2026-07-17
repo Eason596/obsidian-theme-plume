@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+## 1.1.1
+
+### Fixed
+
+- Plain code fences no longer collapse into one line in Reading view (skip highlight.js rewrite unless Plume fence meta is present).
+
 ## 1.1.0
 
 ### Added

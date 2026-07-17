@@ -7,7 +7,7 @@ Render [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume
 | | |
 |---|---|
 | Plugin ID | `theme-plume` |
-| Version | 1.1.0 (see `manifest.json`) |
+| Version | 1.1.1 (see `manifest.json`) |
 | Min Obsidian | 1.5.0 |
 | License | [MIT](./LICENSE) (upstream acknowledgements: [NOTICE](./NOTICE)) |
 

@@ -752,7 +752,7 @@ Copy button in the top-right (Copy HTML / Copy Markdown). Use `copy="false"` if 
 
 | Name | Version | Description |
 | ---- | ---- | ---- |
-| Theme Plume | 1.1.0 | Obsidian plugin |
+| Theme Plume | 1.1.1 | Obsidian plugin |
 | VuePress Plume | — | Upstream theme |
 
 :::

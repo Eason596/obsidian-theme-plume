@@ -7,7 +7,7 @@
 | | |
 |---|---|
 | 插件 ID | `theme-plume` |
-| 版本 | 1.1.0（见 `manifest.json`） |
+| 版本 | 1.1.1（见 `manifest.json`） |
 | 最低 Obsidian | 1.5.0 |
 | 协议 | [MIT](./LICENSE)（上游致谢见 [NOTICE](./NOTICE)） |
 
