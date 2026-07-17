@@ -121,6 +121,8 @@ export default class ObsidianPlumePlugin extends Plugin {
       }
     });
 
+    // Register processors before warming Shiki — first Reading-view paint must not
+    // race past an empty processor list while the highlighter module loads.
     this.registerMarkdownPostProcessor(async (rootElement, ctx) => {
       await this.pipeline.processSection(rootElement, ctx);
     });
@@ -232,6 +234,42 @@ export default class ObsidianPlumePlugin extends Plugin {
     this.registerDomEvent(document, "scroll", (event) => {
       this.rememberPreviewScrollFromEvent(event);
     }, true);
+
+    // Warm Shiki in the background (never block processor registration above).
+    void import("./src/render/code-highlight")
+      .then(({ preloadHighlighter }) => {
+        preloadHighlighter();
+      })
+      .catch((err) => {
+        console.error("[theme-plume] Shiki preload failed", err);
+      });
+
+    // Obsidian appearance toggle changes body.theme-dark — recolor Shiki tokens
+    this.registerEvent(
+      this.app.workspace.on("css-change", () => {
+        this.refreshOpenReadingPreviews();
+      })
+    );
+
+    // Vault open often paints Reading view before plugins finish; re-run only if
+    // raw Plume containers are still visible (avoids always double-flashing).
+    this.app.workspace.onLayoutReady(() => {
+      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (!view?.file || view.getMode() !== "preview") return;
+      const root =
+        (view.previewMode as { containerEl?: HTMLElement } | undefined)?.containerEl
+        ?? view.contentEl;
+      const hasRawPlume = Array.from(root.querySelectorAll("p, div, li")).some((el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        if (el.closest(".plume-has-block, .vp-code-tree, .obsidian-vuepress-file-tree")) {
+          return false;
+        }
+        return /^\s*:::/.test(el.textContent ?? "");
+      });
+      if (!hasRawPlume) return;
+      this.previewSync.markDirty(view.file.path, view.editor.getValue());
+      this.fullRerenderPreviewView(view);
+    });
   }
 
   onunload(): void {
@@ -251,6 +289,13 @@ export default class ObsidianPlumePlugin extends Plugin {
     this.contentEpochByPath.clear();
     this.markdownModeByPath.clear();
     this.pipeline?.clear();
+    void import("./src/render/code-fence")
+      .then(({ disconnectAllFenceWatchers }) => {
+        disconnectAllFenceWatchers();
+      })
+      .catch(() => {
+        /* module may never have loaded */
+      });
   }
 
   private bumpContentEpoch(sourcePath: string): number {
@@ -528,10 +573,47 @@ export default class ObsidianPlumePlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    await this.applyShikiThemeSettings();
+    // Persist fallbacks if stored theme ids are invalid / missing
+    const { isBundledShikiTheme } = await import("./src/render/code-highlight");
+    let fixed = false;
+    if (!isBundledShikiTheme(this.settings.shikiThemeLight)) {
+      this.settings.shikiThemeLight = DEFAULT_SETTINGS.shikiThemeLight;
+      fixed = true;
+    }
+    if (!isBundledShikiTheme(this.settings.shikiThemeDark)) {
+      this.settings.shikiThemeDark = DEFAULT_SETTINGS.shikiThemeDark;
+      fixed = true;
+    }
+    if (fixed) {
+      await this.saveData(this.settings);
+      await this.applyShikiThemeSettings();
+    }
   }
 
   async saveSettings(): Promise<void> {
+    await this.applyShikiThemeSettings();
     await this.saveData(this.settings);
+  }
+
+  private async applyShikiThemeSettings(): Promise<void> {
+    try {
+      const { configureShikiThemes } = await import("./src/render/code-highlight");
+      configureShikiThemes(this.settings.shikiThemeLight, this.settings.shikiThemeDark);
+    } catch (err) {
+      console.error("[theme-plume] apply Shiki themes failed", err);
+    }
+  }
+
+  /** Re-render open Reading views so Shiki theme changes take effect. */
+  refreshOpenReadingPreviews(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView) || !view.file) continue;
+      if (view.getMode() !== "preview") continue;
+      this.previewSync.markDirty(view.file.path, view.editor.getValue());
+      this.fullRerenderPreviewView(view);
+    }
   }
 
   private buildRenderContext(
@@ -802,5 +884,58 @@ class PlumeSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
+
+    new Setting(containerEl).setName("Code highlighting (Shiki)").setHeading();
+    containerEl.createEl("p", {
+      text: "Themes follow Obsidian light/dark appearance. Default matches VuePress Theme Plume (vitesse)."
+    });
+
+    const shikiHost = containerEl.createDiv({ cls: "plume-shiki-theme-settings" });
+    shikiHost.createEl("p", { text: "Loading theme list…" });
+    void this.mountShikiThemeSettings(shikiHost);
+  }
+
+  private async mountShikiThemeSettings(host: HTMLElement): Promise<void> {
+    try {
+      const { listBundledShikiThemes } = await import("./src/render/code-highlight");
+      const themeOptions = listBundledShikiThemes();
+      host.empty();
+
+      new Setting(host)
+        .setName("Light theme")
+        .setDesc("Used when Obsidian is in light mode.")
+        .addDropdown((dropdown) => {
+          for (const id of themeOptions) {
+            dropdown.addOption(id, id);
+          }
+          const current = this.plugin.settings.shikiThemeLight;
+          dropdown.setValue(themeOptions.includes(current) ? current : "vitesse-light");
+          dropdown.onChange(async (value) => {
+            this.plugin.settings.shikiThemeLight = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshOpenReadingPreviews();
+          });
+        });
+
+      new Setting(host)
+        .setName("Dark theme")
+        .setDesc("Used when Obsidian is in dark mode.")
+        .addDropdown((dropdown) => {
+          for (const id of themeOptions) {
+            dropdown.addOption(id, id);
+          }
+          const current = this.plugin.settings.shikiThemeDark;
+          dropdown.setValue(themeOptions.includes(current) ? current : "vitesse-dark");
+          dropdown.onChange(async (value) => {
+            this.plugin.settings.shikiThemeDark = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshOpenReadingPreviews();
+          });
+        });
+    } catch (err) {
+      console.error("[theme-plume] failed to load Shiki theme list", err);
+      host.empty();
+      host.createEl("p", { text: "Failed to load Shiki theme list. See console." });
+    }
   }
 }

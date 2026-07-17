@@ -4,6 +4,21 @@
 
 ## Unreleased
 
+## 1.2.0
+
+### Changed
+
+- Code highlighting now uses **Shiki** (default `vitesse-light` / `vitesse-dark`, same as VuePress Theme Plume), replacing highlight.js.
+- Settings: choose separate Shiki themes for Obsidian light and dark appearance.
+
+### Fixed
+
+- First vault open could leave raw `::: code-tree` until switching notes; register processors earlier, retry section info, and re-render only when needed.
+- Code-tree panel highlighting could stick with wrong colors until clicking another file (async Shiki race).
+- Obsidian light/dark toggle now recolors Shiki tokens.
+- `[!code word:…]` no longer corrupts inline `style` attributes.
+- Prompt containers no longer force-collapse code whitespace.
+
 ## 1.1.1
 
 ### Fixed

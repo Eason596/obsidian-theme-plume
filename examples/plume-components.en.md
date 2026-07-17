@@ -227,7 +227,7 @@ createApp(App).mount('#app')
 
 ### With options
 
-@[code-tree title="Plugin source" height="800px" entry="parser.ts](../src)
+@[code-tree title="Plugin source" height="800px" entry="parser.ts"](../src)
 
 > Paths are relative to this file; `build:demo` skips oversized files and items like `main.js` to avoid exhausting memory during static site builds.
 
@@ -752,7 +752,7 @@ Copy button in the top-right (Copy HTML / Copy Markdown). Use `copy="false"` if 
 
 | Name | Version | Description |
 | ---- | ---- | ---- |
-| Theme Plume | 1.1.1 | Obsidian plugin |
+| Theme Plume | 1.2.0 | Obsidian plugin |
 | VuePress Plume | — | Upstream theme |
 
 :::

@@ -10,7 +10,8 @@ export {
   scanCodeFences,
   decorateCodeBlockTitles,
   decorateCodeBlockFeatures,
-  decorateSubtreeCodeFences
+  decorateSubtreeCodeFences,
+  disconnectAllFenceWatchers
 } from "./code-fence";
 export type { CodeFenceMeta } from "./code-fence";
 export { gatherMasonryItems } from "../render";

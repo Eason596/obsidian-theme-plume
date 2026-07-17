@@ -2,7 +2,10 @@ import { setIcon } from "obsidian";
 import { resolveNodeIcon } from "../icons";
 import type { FileTreeIconMode } from "../types";
 import {
+  getActiveShikiThemeId,
   highlightSourceLines,
+  languageFromFilename,
+  normalizeFenceLang,
   resolveCodeLanguage
 } from "./code-highlight";
 import { prepareIconifyIconElement, processIconifyIcons } from "./iconify-online";
@@ -12,6 +15,8 @@ export const CODE_FEATURES_PROCESSED_ATTR = "data-vp-code-features-done";
 
 export interface CodeFenceMeta {
   title?: string;
+  /** Fence language id from info string (e.g. vue, ts). */
+  language?: string;
   /** 0-based line indices to highlight from `{1,3-5}` info syntax. */
   highlightLines: number[];
   lineNumbers: boolean | null;
@@ -52,6 +57,15 @@ function parseFenceInfo(info: string): Omit<CodeFenceMeta, "openLine" | "closeLi
   const tm = info.match(/\btitle\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]+))/);
   const title = tm ? (tm[1] ?? tm[2] ?? tm[3]) : undefined;
 
+  const langToken = (info.trim().split(/\s+/)[0] ?? "").replace(/\{.*$/, "");
+  const language =
+    langToken
+    && !langToken.startsWith(":")
+    && !langToken.includes("=")
+    && langToken !== "{}"
+      ? normalizeFenceLang(langToken)
+      : undefined;
+
   const highlightLines: number[] = [];
   const brace = info.match(/\{([^}]+)\}/);
   if (brace) {
@@ -81,7 +95,7 @@ function parseFenceInfo(info: string): Omit<CodeFenceMeta, "openLine" | "closeLi
     }
   }
 
-  return { title, highlightLines, lineNumbers, lineNumbersStart, collapsedLines };
+  return { title, language, highlightLines, lineNumbers, lineNumbersStart, collapsedLines };
 }
 
 export function scanCodeFenceTitles(markdown: string): Array<{ title?: string }> {
@@ -179,6 +193,16 @@ function listCodeBlockPres(container: HTMLElement): HTMLElement[] {
   const consider = (pre: HTMLElement): void => {
     // Live Preview CM editable surface — do not rewrite
     if (pre.closest(".cm-content, .cm-editor .cm-scroller")) return;
+    // Code-tree panel owns its header; never attach document fence titles here
+    // (otherwise first Reading-view paint mis-pairs title="HelloWorld.vue" onto main.ts).
+    if (
+      pre.closest(
+        ".vp-code-tree, .obsidian-vuepress-code-tree, .vp-code-tree-panel-content"
+      )
+      || pre.classList.contains("vp-code-tree-pre")
+    ) {
+      return;
+    }
     const first = pre.firstElementChild;
     if (first != null && first.tagName === "CODE" && !found.includes(pre)) {
       found.push(pre);
@@ -321,25 +345,68 @@ function ensureFeatureShell(pre: HTMLElement, code: HTMLElement, lang: string): 
   return shell;
 }
 
+/**
+ * Wrap occurrences of `word` in text nodes only — never run a regex over HTML
+ * (that would match inside `style="color:…"` / tags).
+ */
 function applyWordHighlightHtml(lineHtml: string, word: string | undefined): string {
   if (!word) return lineHtml;
-  const needle = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  try {
-    return lineHtml.replace(new RegExp(needle, "g"), (m) => {
-      return `<span class="highlighted-word">${m}</span>`;
-    });
-  } catch {
-    return lineHtml;
+  const wrap = document.createElement("span");
+  wrap.innerHTML = lineHtml || "\u200b";
+
+  const textNodes: Text[] = [];
+  const walker = document.createTreeWalker(wrap, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    textNodes.push(node as Text);
   }
+
+  for (const textNode of textNodes) {
+    const value = textNode.nodeValue ?? "";
+    if (!value.includes(word)) continue;
+
+    const frag = document.createDocumentFragment();
+    let remaining = value;
+    let idx = remaining.indexOf(word);
+    while (idx >= 0) {
+      if (idx > 0) {
+        frag.appendChild(document.createTextNode(remaining.slice(0, idx)));
+      }
+      const mark = document.createElement("span");
+      mark.className = "highlighted-word";
+      mark.textContent = word;
+      frag.appendChild(mark);
+      remaining = remaining.slice(idx + word.length);
+      idx = remaining.indexOf(word);
+    }
+    if (remaining) {
+      frag.appendChild(document.createTextNode(remaining));
+    }
+    textNode.parentNode?.replaceChild(frag, textNode);
+  }
+
+  return wrap.innerHTML;
 }
 
-function applyFeatureDom(pre: HTMLElement, meta: CodeFenceMeta, decorated: LineDecoration[]): void {
+async function applyFeatureDom(
+  pre: HTMLElement,
+  meta: CodeFenceMeta,
+  decorated: LineDecoration[]
+): Promise<void> {
   const code = pre.querySelector("code");
   if (!(code instanceof HTMLElement)) return;
 
-  const lang = resolveCodeLanguage(code, pre);
+  const jobId = String((Number(pre.dataset.vpHlJob ?? "0") || 0) + 1);
+  pre.dataset.vpHlJob = jobId;
+
+  const lang = meta.language
+    ? normalizeFenceLang(meta.language)
+    : resolveCodeLanguage(code, pre);
   const cleanedSource = decorated.map((d) => d.text).join("\n");
-  const hlLines = highlightSourceLines(lang, cleanedSource);
+  const hlLines = await highlightSourceLines(lang, cleanedSource);
+
+  // Abort if Obsidian replaced this <code>, or a newer highlight job started
+  if (pre.querySelector("code") !== code) return;
+  if (pre.dataset.vpHlJob !== jobId) return;
 
   const hasFocus = decorated.some((d) => d.classes.includes("focused"));
   const hasLineDecor =
@@ -351,13 +418,11 @@ function applyFeatureDom(pre: HTMLElement, meta: CodeFenceMeta, decorated: LineD
         || d.word
     ) || meta.highlightLines.length > 0;
 
-  // Pad / trim hl lines to match decorated line count
   while (hlLines.length < decorated.length) hlLines.push("");
   if (hlLines.length > decorated.length) {
     hlLines.length = decorated.length;
   }
 
-  // Join without raw newlines — `.line` is block-level (avoids inline-block whitespace drift)
   const html = decorated
     .map((d, i) => {
       const cls = d.classes.join(" ");
@@ -367,12 +432,13 @@ function applyFeatureDom(pre: HTMLElement, meta: CodeFenceMeta, decorated: LineD
     .join("");
 
   pre.dataset.vpCodeWriting = "1";
-  code.classList.add("hljs", `language-${lang}`);
+  code.classList.remove("hljs");
+  code.classList.add("shiki", `language-${lang}`);
+  code.dataset.vpShikiTheme = getActiveShikiThemeId();
   code.innerHTML = html;
   pre.setAttribute(CODE_FEATURES_PROCESSED_ATTR, "1");
   delete pre.dataset.vpCodeWriting;
 
-  // Always wrap for highlight chrome (line numbers / collapse / hljs tokens)
   const featureHost = ensureFeatureShell(pre, code, lang);
 
   featureHost.classList.toggle("has-focused", hasFocus);
@@ -425,7 +491,9 @@ function applyFeatureDom(pre: HTMLElement, meta: CodeFenceMeta, decorated: LineD
 function looksAlreadyDecorated(code: HTMLElement, meta: CodeFenceMeta): boolean {
   if (code.textContent?.includes("[!code")) return false;
   if (!code.querySelector(".line")) return false;
-  if (!code.classList.contains("hljs")) return false;
+  // Only Shiki counts as done — Obsidian hljs must still be upgraded
+  if (!code.classList.contains("shiki")) return false;
+  if (code.dataset.vpShikiTheme !== getActiveShikiThemeId()) return false;
   if (meta.highlightLines.length > 0 && !code.querySelector(".highlighted")) return false;
   if (meta.bodyLines.some((l) => /\[!code\s+(?:\+\+|--)/.test(l)) && !code.querySelector(".diff")) {
     return false;
@@ -434,6 +502,13 @@ function looksAlreadyDecorated(code: HTMLElement, meta: CodeFenceMeta): boolean 
     return false;
   }
   return true;
+}
+
+const activeFenceObservers = new Set<MutationObserver>();
+const activeFenceTimers = new Set<number>();
+
+function isHtmlElement(node: Element | null): node is HTMLElement {
+  return !!node && typeof (node as HTMLElement).classList !== "undefined";
 }
 
 function scheduleFenceReapply(pre: HTMLElement): void {
@@ -445,60 +520,112 @@ function scheduleFenceReapply(pre: HTMLElement): void {
   } catch {
     return;
   }
-  const run = (): void => {
-    if (!pre.isConnected) return;
-    const code = pre.querySelector("code");
-    if (!(code instanceof HTMLElement)) return;
-    if (!looksAlreadyDecorated(code, meta)) {
-      const sourceLines =
-        meta.bodyLines.length > 0
-          ? meta.bodyLines
-          : normalizeCodeText(code.textContent ?? "").split("\n");
-      applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta));
+
+  const gen = String((Number(pre.dataset.vpFenceGen ?? "0") || 0) + 1);
+  pre.dataset.vpFenceGen = gen;
+
+  const clearPreTimers = (): void => {
+    for (const key of ["vpFenceTimer", "vpFenceTimer2"] as const) {
+      const id = Number(pre.dataset[key] ?? 0) || 0;
+      if (id) {
+        window.clearTimeout(id);
+        activeFenceTimers.delete(id);
+        delete pre.dataset[key];
+      }
     }
   };
-  window.requestAnimationFrame(() => {
+  clearPreTimers();
+
+  const run = (): void => {
+    if (pre.dataset.vpFenceGen !== gen) return;
+    const code = pre.querySelector("code");
+    if (!isHtmlElement(code)) return;
+    if (looksAlreadyDecorated(code, meta)) return;
+    const sourceLines =
+      meta.bodyLines.length > 0
+        ? meta.bodyLines
+        : normalizeCodeText(code.textContent ?? "").split("\n");
+    void applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta));
+  };
+
+  // Debounced retries to beat Obsidian's highlighter without stampeding Shiki
+  const timer = window.setTimeout(() => {
+    activeFenceTimers.delete(timer);
     run();
-    window.setTimeout(run, 0);
-    window.setTimeout(run, 50);
-    window.setTimeout(run, 200);
-    window.setTimeout(run, 500);
-  });
+    const timer2 = window.setTimeout(() => {
+      activeFenceTimers.delete(timer2);
+      if (pre.dataset.vpFenceGen !== gen) return;
+      run();
+    }, 180);
+    activeFenceTimers.add(timer2);
+    pre.dataset.vpFenceTimer2 = String(timer2);
+  }, 32);
+  activeFenceTimers.add(timer);
+  pre.dataset.vpFenceTimer = String(timer);
 }
 
 function watchFenceAgainstHighlighter(pre: HTMLElement): void {
+  if (typeof MutationObserver === "undefined") return;
   if (pre.dataset.vpFenceWatch === "1") return;
   pre.dataset.vpFenceWatch = "1";
   const code = pre.querySelector("code");
-  if (!(code instanceof HTMLElement)) return;
+  if (!isHtmlElement(code)) return;
 
   const obs = new MutationObserver(() => {
+    if (!pre.isConnected) {
+      obs.disconnect();
+      activeFenceObservers.delete(obs);
+      delete pre.dataset.vpFenceWatch;
+      return;
+    }
     if (pre.dataset.vpCodeWriting === "1") return;
     scheduleFenceReapply(pre);
   });
+  activeFenceObservers.add(obs);
   obs.observe(code, { childList: true, characterData: true, subtree: true });
 }
 
-function fenceNeedsFeatureRewrite(meta: CodeFenceMeta): boolean {
-  if (meta.highlightLines.length > 0) return true;
-  if (meta.lineNumbers === true) return true;
-  if (meta.collapsedLines != null) return true;
-  return meta.bodyLines.some((line) => CODE_NOTATION_RE.test(line));
+/** Disconnect fence MutationObservers and pending reapply timers (plugin onunload). */
+export function disconnectAllFenceWatchers(): void {
+  for (const obs of activeFenceObservers) {
+    obs.disconnect();
+  }
+  activeFenceObservers.clear();
+  for (const id of activeFenceTimers) {
+    window.clearTimeout(id);
+  }
+  activeFenceTimers.clear();
 }
 
 /**
- * Apply VuePress/Shiki-like decorations: `{n}` highlights, `[!code …]`, line numbers, collapse.
- * Plain fences (no Plume meta) are left to Obsidian — rewriting them from textContent
- * collapses line breaks in Reading view.
+ * Whether to replace Obsidian's highlighter output with Shiki + Plume line chrome.
+ * Safe when `bodyLines` come from the markdown scan (real newlines). Do not rewrite
+ * from collapsed `textContent` alone — that was the Reading-view one-line bug.
  */
-export function decorateCodeBlockFeatures(
+function fenceNeedsFeatureRewrite(meta: CodeFenceMeta): boolean {
+  if (meta.bodyLines.length > 0) return true;
+  if (meta.highlightLines.length > 0) return true;
+  if (meta.lineNumbers === true) return true;
+  if (meta.collapsedLines != null) return true;
+  if (meta.bodyLines.some((line) => CODE_NOTATION_RE.test(line))) return true;
+  const lang = meta.language ?? (meta.title ? languageFromFilename(meta.title) : "");
+  if (lang === "vue") return true;
+  return false;
+}
+
+/**
+ * Apply Shiki highlighting + VuePress decorations: `{n}` highlights, `[!code …]`,
+ * line numbers, collapse. Unmatched Obsidian fences (no scanned meta) are left alone.
+ */
+export async function decorateCodeBlockFeatures(
   container: HTMLElement,
   fences: CodeFenceMeta[]
-): void {
+): Promise<void> {
   const pres = listCodeBlockPres(container);
   if (pres.length === 0) return;
 
   const used = new Set<CodeFenceMeta>();
+  const jobs: Array<Promise<void>> = [];
 
   for (const pre of pres) {
     let meta = findFenceForPre(pre, fences);
@@ -540,6 +667,7 @@ export function decorateCodeBlockFeatures(
 
     pre.dataset.vpFenceMeta = JSON.stringify({
       title: meta.title,
+      language: meta.language,
       highlightLines: meta.highlightLines,
       lineNumbers: meta.lineNumbers,
       lineNumbersStart: meta.lineNumbersStart,
@@ -549,10 +677,12 @@ export function decorateCodeBlockFeatures(
       bodyLines: meta.bodyLines
     } satisfies CodeFenceMeta);
 
-    applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta));
+    jobs.push(applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta)));
     watchFenceAgainstHighlighter(pre);
     scheduleFenceReapply(pre);
   }
+
+  await Promise.all(jobs);
 }
 
 function resolveCodeBlockIconFilename(title: string, pre: HTMLElement | null): string {
@@ -596,39 +726,68 @@ function applyCodeTitleIcon(
 
 export function decorateCodeBlockTitles(
   container: HTMLElement,
-  fences: Array<{ title?: string }>,
+  fences: CodeFenceMeta[],
   mode: FileTreeIconMode
 ): void {
-  const pres = listCodeBlockPres(container);
-  let preIndex = 0;
-
-  for (let fi = 0; fi < fences.length; fi += 1) {
-    const newTitle = fences[fi].title;
-    if (preIndex >= pres.length) {
-      break;
+  // Unwrap title chrome wrongly attached to code-tree panels
+  for (const wrapper of Array.from(
+    container.querySelectorAll<HTMLElement>(
+      ".vp-code-tree .vp-code-block-title, .obsidian-vuepress-code-tree .vp-code-block-title, .vp-code-tree-panel-content .vp-code-block-title"
+    )
+  )) {
+    const pre = wrapper.querySelector("pre");
+    if (!(pre instanceof HTMLElement)) {
+      wrapper.remove();
+      continue;
     }
-    const pre = pres[preIndex];
-    preIndex += 1;
-    // After features wrap, parent is `.vp-code-features` — use closest so we
-    // don't insert a second title bar on nested re-decorate (e.g. ::: window).
+    const shell = pre.closest(".vp-code-features") ?? pre;
+    wrapper.replaceWith(shell);
+    pre.removeAttribute(CODE_TITLE_PROCESSED_ATTR);
+  }
+
+  // Drop orphan title bars (title chrome with no real code) — e.g. hello.js above H1
+  for (const wrapper of Array.from(
+    container.querySelectorAll<HTMLElement>(".vp-code-block-title")
+  )) {
+    if (wrapper.closest(".vp-code-tree, .obsidian-vuepress-code-tree")) continue;
+    const pre = wrapper.querySelector("pre");
+    const body = pre ? normalizeCodeText(pre.textContent ?? "").trim() : "";
+    if (!(pre instanceof HTMLElement) || !body) {
+      if (pre instanceof HTMLElement) {
+        const shell = pre.closest(".vp-code-features") ?? pre;
+        wrapper.replaceWith(shell);
+        pre.removeAttribute(CODE_TITLE_PROCESSED_ATTR);
+      } else {
+        wrapper.remove();
+      }
+    }
+  }
+
+  const titled = fences.filter((f) => !!f.title);
+  const used = new Set<CodeFenceMeta>();
+  const pres = listCodeBlockPres(container);
+
+  for (const pre of pres) {
+    const unused = titled.filter((f) => !used.has(f));
+    const meta = findFenceForPre(pre, unused) ?? findFenceForPre(pre, titled);
     const existing = pre.closest(".vp-code-block-title") as HTMLElement | null;
 
-    if (existing) {
-      if (!newTitle) {
+    if (!meta?.title) {
+      if (existing) {
         const shell = pre.closest(".vp-code-features") ?? pre;
         existing.replaceWith(shell);
         pre.removeAttribute(CODE_TITLE_PROCESSED_ATTR);
-        continue;
       }
-      if (existing.dataset.title !== newTitle) {
-        updateWrapperTitle(existing, newTitle, mode);
-      }
-      pre.setAttribute(CODE_TITLE_PROCESSED_ATTR, "1");
       continue;
     }
 
-    if (!newTitle) {
-      pre.removeAttribute(CODE_TITLE_PROCESSED_ATTR);
+    used.add(meta);
+
+    if (existing) {
+      if (existing.dataset.title !== meta.title) {
+        updateWrapperTitle(existing, meta.title, mode);
+      }
+      pre.setAttribute(CODE_TITLE_PROCESSED_ATTR, "1");
       continue;
     }
 
@@ -637,7 +796,7 @@ export function decorateCodeBlockTitles(
     }
 
     pre.setAttribute(CODE_TITLE_PROCESSED_ATTR, "1");
-    wrapPreWithTitle(pre, newTitle, mode);
+    wrapPreWithTitle(pre, meta.title, mode);
   }
 
   for (const wrapper of Array.from(
@@ -659,17 +818,17 @@ export function decorateCodeBlockTitles(
 }
 
 /** Decorate fenced code titles + Shiki-like features inside a rendered subtree. */
-export function decorateSubtreeCodeFences(
+export async function decorateSubtreeCodeFences(
   root: HTMLElement,
   markdown: string,
   mode: FileTreeIconMode
-): void {
+): Promise<void> {
   if (!markdown.trim()) {
     return;
   }
   const fences = scanCodeFences(markdown);
   decorateCodeBlockTitles(root, fences, mode);
-  decorateCodeBlockFeatures(root, fences);
+  await decorateCodeBlockFeatures(root, fences);
 }
 
 function updateWrapperTitle(wrapper: HTMLElement, title: string, mode: FileTreeIconMode): void {

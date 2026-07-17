@@ -227,7 +227,8 @@ body {
   overflow-x: auto;
 }
 
-/* Code blocks: match page theme (override highlight.js github light on dark OS) */
+/* Code blocks: match page theme (Shiki inline colors + fallbacks) */
+.plume-demo-content pre:has(> code.shiki),
 .plume-demo-content pre:has(> code.hljs),
 .plume-demo-content .vp-code-tree-panel-content > pre,
 .plume-demo-content .vp-code-block-title > pre,

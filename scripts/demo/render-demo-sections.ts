@@ -20,7 +20,7 @@ function renderSourcePanel(parent: HTMLElement, sourceMd: string): void {
 
   const codeWrap = document.createElement("div");
   codeWrap.className = "demo-source-code";
-  mountPlainSourceCode(codeWrap, sourceMd);
+  void mountPlainSourceCode(codeWrap, sourceMd);
   details.appendChild(codeWrap);
 
   parent.appendChild(details);

@@ -4,6 +4,21 @@
 
 ## 未发布
 
+## 1.2.0
+
+### 变更
+
+- 代码高亮改为 **Shiki**（默认 `vitesse-light` / `vitesse-dark`，与 VuePress Theme Plume 一致），替换 highlight.js。
+- 设置中可为 Obsidian 亮色 / 暗色分别选择 Shiki 主题。
+
+### 修复
+
+- 首次打开库时 `::: code-tree` 可能仍显示原文：提前注册后处理器、重试 section info，仅在必要时强制重渲。
+- code-tree 面板高亮可能卡住（异步 Shiki 竞态），需点其他文件才恢复。
+- 切换 Obsidian 亮/暗后会重新上色。
+- `[!code word:…]` 不再误伤内联 `style` 属性。
+- 提示容器内代码不再被 `white-space` 挤成一行。
+
 ## 1.1.1
 
 ### 修复

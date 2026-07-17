@@ -13,7 +13,8 @@ await esbuild.build({
   platform: "node",
   format: "esm",
   outfile,
-  packages: "bundle",
+  // Keep node_modules external so packages like `qrcode` can require("fs").
+  packages: "external",
   external: ["happy-dom"],
   alias: {
     obsidian: path.join(root, "scripts", "demo", "obsidian-shim.ts")

@@ -36,10 +36,15 @@ function buildHtml(bodyInner: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Obsidian Plume 组件静态预览 — 由 examples/plume-components.md 构建">
   <title>Obsidian Plume — 组件预览</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" media="(prefers-color-scheme: light)">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="demo-base.css">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Shiki dual-theme (vitesse) — match VuePress Plume defaults */
+    .shiki, .shiki span { color: var(--shiki-light); background-color: var(--shiki-light-bg); }
+    @media (prefers-color-scheme: dark) {
+      .shiki, .shiki span { color: var(--shiki-dark); background-color: var(--shiki-dark-bg); }
+    }
+  </style>
 </head>
 <body>
   <header class="demo-header">

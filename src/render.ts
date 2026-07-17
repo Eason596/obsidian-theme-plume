@@ -12,6 +12,12 @@ import {
   scanCodeFences
 } from "./render/code-fence";
 import {
+  getActiveShikiThemeId,
+  highlightSourceLines,
+  languageFromFilename,
+  normalizeFenceLang
+} from "./render/code-highlight";
+import {
   type BlockRenderContext,
   type PlumeRenderSettings,
   toBlockRenderContext,
@@ -54,7 +60,8 @@ export {
   scanCodeFences,
   decorateCodeBlockTitles,
   decorateCodeBlockFeatures,
-  decorateSubtreeCodeFences
+  decorateSubtreeCodeFences,
+  disconnectAllFenceWatchers
 } from "./render/code-fence";
 export type { CodeFenceMeta } from "./render/code-fence";
 import type {
@@ -688,19 +695,51 @@ function normalizeHeightValue(height: string | undefined): string | undefined {
   return value;
 }
 
-function renderPlainCodeBlock(container: HTMLElement, language: string, content: string): void {
+async function renderPlainCodeBlock(
+  container: HTMLElement,
+  language: string,
+  content: string
+): Promise<void> {
+  const lang = normalizeFenceLang(language || "text");
+  const shell = document.createElement("div");
+  shell.className = `vp-code-features language-${lang}`;
+
   const pre = document.createElement("pre");
   pre.className = "vp-code-tree-pre";
 
   const code = document.createElement("code");
-  code.className = `language-${language || "text"}`;
-  code.textContent = content;
-
+  code.className = `language-${lang} shiki`;
+  // Preserve line structure immediately — `.vp-code-features code` uses
+  // white-space:normal until `.line` children exist (otherwise one long line).
+  const rawLines = content.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+  code.innerHTML = rawLines
+    .map((line) => `<span class="line">${escapeCodeHtml(line) || "\u200b"}</span>`)
+    .join("");
   pre.appendChild(code);
-  container.appendChild(pre);
+  shell.appendChild(pre);
+  container.appendChild(shell);
+
+  const lines = await highlightSourceLines(lang, content);
+  // Abort only if this panel was replaced (do not require isConnected —
+  // mid-render detach races left code stuck uncolored forever).
+  if (pre.querySelector("code") !== code || !container.contains(code)) return;
+  code.dataset.vpShikiTheme = getActiveShikiThemeId();
+  code.innerHTML = lines
+    .map((line) => `<span class="line">${line || "\u200b"}</span>`)
+    .join("");
 }
 
-export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTreeOptions): void {
+function escapeCodeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+export async function renderCodeTreeInto(
+  container: HTMLElement,
+  options: RenderCodeTreeOptions
+): Promise<void> {
   const normalizedFiles: CodeTreeFileItem[] = [];
   const fileMap = new Map<string, CodeTreeFileItem>();
 
@@ -721,7 +760,10 @@ export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTr
     const normalizedFile: CodeTreeFileItem = {
       ...file,
       filepath,
-      language: file.language || "text"
+      language:
+        file.language && file.language !== "text" && file.language !== "plaintext"
+          ? file.language
+          : languageFromFilename(filepath)
     };
 
     fileMap.set(filepath, normalizedFile);
@@ -784,8 +826,8 @@ export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTr
 
   let activePath = initialPath;
   let activeInfoElement: HTMLElement | null = null;
-  let panelRenderToken = 0;
   const fileInfoMap = new Map<string, HTMLElement>();
+  let panelGeneration = 0;
 
   const setActiveInfo = (filepath: string): void => {
     const next = fileInfoMap.get(filepath);
@@ -801,32 +843,22 @@ export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTr
     activeInfoElement = next;
   };
 
-  const renderPanel = (filepath: string): void => {
+  const renderPanel = async (filepath: string): Promise<void> => {
     const file = fileMap.get(filepath);
     if (!file) {
       return;
     }
 
+    const gen = ++panelGeneration;
+    activePath = filepath;
     panelEntry.textContent = file.filepath;
     panelContent.empty();
-
-    if (!options.markdownContext) {
-      renderPlainCodeBlock(panelContent, file.language, file.content);
-      return;
-    }
-
-    const token = String(++panelRenderToken);
-    panelContent.dataset.vpctRenderToken = token;
-    const markdown = `\`\`\`${file.language}\n${file.content}\n\`\`\``;
-
-    void renderPlumeMarkdown(panelContent, markdown, options.markdownContext)
-      .catch(() => {
-        if (panelContent.dataset.vpctRenderToken !== token || !panelContent.isConnected) {
-          return;
-        }
-        panelContent.empty();
-        renderPlainCodeBlock(panelContent, file.language, file.content);
-      });
+    await renderPlainCodeBlock(
+      panelContent,
+      file.language || languageFromFilename(file.filepath),
+      file.content
+    );
+    if (gen !== panelGeneration) return;
   };
 
   const renderNodes = (parent: HTMLElement, nodes: FileTreeNode[], parentPath: string): void => {
@@ -921,14 +953,14 @@ export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTr
 
         activePath = filepath;
         setActiveInfo(activePath);
-        renderPanel(activePath);
+        void renderPanel(activePath);
       });
     }
   };
 
   renderNodes(nav, treeNodes, "");
   setActiveInfo(activePath);
-  renderPanel(activePath);
+  await renderPanel(activePath);
 }
 
 export function renderPromptContainerInto(container: HTMLElement, options: RenderPromptContainerOptions): void {
@@ -1115,7 +1147,7 @@ export async function renderBlock(
     case "code-tree": {
       const files = parseCodeTreeRawContent(block.rawContent);
       if (files.length === 0) return;
-      renderCodeTreeInto(container, {
+      await renderCodeTreeInto(container, {
         files,
         attrs: block.attrs as CodeTreeContainerAttrs,
         defaultIconMode: ctx.defaultIconMode,
@@ -1134,7 +1166,7 @@ export async function renderBlock(
       if (!finalAttrs.entry) {
         finalAttrs.entry = files[0].filepath;
       }
-      renderCodeTreeInto(container, {
+      await renderCodeTreeInto(container, {
         files,
         attrs: finalAttrs,
         defaultIconMode: ctx.defaultIconMode,

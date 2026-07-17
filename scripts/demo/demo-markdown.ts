@@ -1,48 +1,80 @@
 import { marked } from "marked";
-import hljs from "highlight.js/lib/core";
-import bash from "highlight.js/lib/languages/bash";
-import css from "highlight.js/lib/languages/css";
-import http from "highlight.js/lib/languages/http";
-import javascript from "highlight.js/lib/languages/javascript";
-import json from "highlight.js/lib/languages/json";
-import typescript from "highlight.js/lib/languages/typescript";
-
-hljs.registerLanguage("bash", bash);
-hljs.registerLanguage("sh", bash);
-hljs.registerLanguage("shell", bash);
-hljs.registerLanguage("css", css);
-hljs.registerLanguage("http", http);
-hljs.registerLanguage("javascript", javascript);
-hljs.registerLanguage("js", javascript);
-hljs.registerLanguage("json", json);
-hljs.registerLanguage("typescript", typescript);
-hljs.registerLanguage("ts", typescript);
+import { createHighlighter, type Highlighter } from "shiki";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
 marked.setOptions({
   gfm: true,
   breaks: true
 });
 
-marked.use({
-  renderer: {
-    code({ text, lang }) {
-      const language = (lang ?? "").split(/\s+/)[0] || "plaintext";
-      let highlighted = text;
-      if (hljs.getLanguage(language)) {
-        highlighted = hljs.highlight(text, { language }).value;
-      } else {
-        highlighted = hljs.highlightAuto(text).value;
-      }
-      const langClass = language ? ` language-${language}` : "";
-      return `<pre><code class="hljs${langClass}">${highlighted}</code></pre>`;
-    }
+let highlighterPromise: Promise<Highlighter> | null = null;
+let rendererReady = false;
+
+async function getDemoHighlighter(): Promise<Highlighter> {
+  if (!highlighterPromise) {
+    highlighterPromise = createHighlighter({
+      themes: ["vitesse-light", "vitesse-dark"],
+      langs: [
+        "javascript",
+        "typescript",
+        "vue",
+        "json",
+        "css",
+        "html",
+        "bash",
+        "shell",
+        "markdown",
+        "yaml",
+        "python",
+        "http",
+        "plaintext"
+      ],
+      engine: createJavaScriptRegexEngine()
+    });
   }
-});
+  return highlighterPromise;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function ensureMarkedRenderer(): Promise<Highlighter> {
+  const highlighter = await getDemoHighlighter();
+  if (rendererReady) return highlighter;
+  rendererReady = true;
+
+  marked.use({
+    renderer: {
+      code({ text, lang }) {
+        const language = (lang ?? "").split(/\s+/)[0] || "plaintext";
+        try {
+          return highlighter.codeToHtml(text, {
+            lang: language,
+            themes: {
+              light: "vitesse-light",
+              dark: "vitesse-dark"
+            },
+            defaultColor: false
+          });
+        } catch {
+          return `<pre><code class="language-${language}">${escapeHtml(text)}</code></pre>`;
+        }
+      }
+    }
+  });
+
+  return highlighter;
+}
 
 export async function renderDemoMarkdown(
   container: HTMLElement,
   markdown: string
 ): Promise<void> {
+  await ensureMarkedRenderer();
   const html = await marked.parse(markdown);
   container.innerHTML = typeof html === "string" ? html : String(html);
 }

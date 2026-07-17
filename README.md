@@ -7,7 +7,7 @@ Render [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume
 | | |
 |---|---|
 | Plugin ID | `theme-plume` |
-| Version | 1.1.1 (see `manifest.json`) |
+| Version | 1.2.0 (see `manifest.json`) |
 | Min Obsidian | 1.5.0 |
 | License | [MIT](./LICENSE) (upstream acknowledgements: [NOTICE](./NOTICE)) |
 
@@ -24,6 +24,7 @@ This repository ports [vuepress-theme-plume](https://github.com/pengzhanbo/vuepr
 - Embeds: `@[code-tree]`, `@[qrcode]`, `@[pdf]`, `@[bilibili]`, `@[youtube]`.
 - Container body Markdown is rendered by **Obsidian’s built-in engine** (no bundled markdown-it).
 - Fence info `title="..."` shows a Plume-style title bar (`src/pipeline/code-fence-titles.ts`).
+- Plume fence features (line highlight / focus / diff / line numbers) use **Shiki** (`vitesse-light` / `vitesse-dark`).
 - Inline `<Badge type="tip" text="…">` badges (VuePress-aligned).
 - Note frontmatter: `link-icons` / `link-icon-size` add site favicons before external links.
 - Soft refresh of Plume blocks while editing (including Live Preview leading sections); command palette can force a full preview rebuild.

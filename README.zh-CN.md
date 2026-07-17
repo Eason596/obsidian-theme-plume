@@ -7,7 +7,7 @@
 | | |
 |---|---|
 | 插件 ID | `theme-plume` |
-| 版本 | 1.1.1（见 `manifest.json`） |
+| 版本 | 1.2.0（见 `manifest.json`） |
 | 最低 Obsidian | 1.5.0 |
 | 协议 | [MIT](./LICENSE)（上游致谢见 [NOTICE](./NOTICE)） |
 
@@ -24,6 +24,7 @@
 - 嵌入语法：`@[code-tree]`、`@[qrcode]`、`@[pdf]`、`@[bilibili]`、`@[youtube]`。
 - 容器内正文交给 **Obsidian 自带 Markdown 引擎**渲染，不内置 markdown-it。
 - 代码块信息串中的 `title="..."` 会显示为 Plume 风格标题栏（`src/pipeline/code-fence-titles.ts`）。
+- 带 Plume 特性的代码围栏（行高亮 / focus / diff / 行号）使用 **Shiki**（`vitesse-light` / `vitesse-dark`）。
 - 行内 `<Badge type="tip" text="…">` 徽章（对齐 VuePress）。
 - 笔记 frontmatter：`link-icons` / `link-icon-size` 可为外链自动加网站 favicon。
 - 编辑时 **软刷新** Plume 块（含 Live Preview 已注册的 leading section）；命令面板可强制整页重建预览。

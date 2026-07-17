@@ -63,20 +63,21 @@ export class CodeFenceTitleService {
     fileText: string,
     lineStart: number,
     lineEnd: number
-  ): void {
+  ): Promise<void> {
     const all = scanCodeFences(fileText);
-    let fences = all.filter((f) => f.openLine >= lineStart && f.openLine <= lineEnd);
-    // When caller passed section-local markdown with absolute lineStart/lineEnd,
-    // absolute filter yields nothing — fall back to all fences in the scanned text.
-    if (fences.length === 0 && all.length > 0) {
-      fences = all;
-    }
-    if (fences.length > 0) {
-      decorateCodeBlockTitles(rootElement, fences, this.getDefaultIconMode());
-    }
-    // Match features against all fences in the file: Reading view often strips
-    // newlines from `textContent`, so section-local index fallback is unreliable.
-    decorateCodeBlockFeatures(rootElement, all.length > 0 ? all : fences);
+    const sectionFences = all.filter(
+      (f) => f.openLine >= lineStart && f.openLine <= lineEnd
+    );
+    // Titles must stay section-scoped. Falling back to `all` on empty sections
+    // mis-pairs the first titled fence (e.g. hello.js) onto the wrong place and
+    // leaves orphan title bars above the document heading.
+    decorateCodeBlockTitles(
+      rootElement,
+      sectionFences,
+      this.getDefaultIconMode()
+    );
+    // Features still match against all fences (Reading view may strip newlines).
+    return decorateCodeBlockFeatures(rootElement, all.length > 0 ? all : sectionFences);
   }
 
   refreshDirtyPreviews(): void {

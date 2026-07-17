@@ -425,15 +425,17 @@
 }
 
 .obsidian-vuepress-code-tree {
+  margin: 12px 0 16px;
   padding: 0;
   overflow: hidden;
 }
 
 .obsidian-vuepress-code-tree .vp-code-tree-title {
-  padding: 8px 12px;
+  padding: 10px 14px;
   margin: 0;
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.4;
   color: var(--text-normal);
   border-bottom: 1px solid var(--background-modifier-border);
 }
@@ -489,8 +491,26 @@
 }
 
 .obsidian-vuepress-code-tree .vp-code-tree-panel-content > pre,
-.obsidian-vuepress-code-tree .vp-code-tree-panel-content .vp-code-tree-pre {
+.obsidian-vuepress-code-tree .vp-code-tree-panel-content .vp-code-tree-pre,
+.obsidian-vuepress-code-tree .vp-code-tree-panel-content .vp-code-features {
   margin: 0;
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-panel-content .vp-code-features {
+  border-radius: 0;
+  background: transparent;
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-panel-content .vp-code-features > pre {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.obsidian-vuepress-code-tree .vp-code-tree-panel-content .vp-code-features code {
+  padding: 0 !important;
 }
 
 @media (max-width: 900px) {
@@ -697,7 +717,7 @@
 }
 
 /* Step body: reset line-height from the 28px step header row so code blocks render normally */
-.obsidian-vuepress-steps > :where(ol, ul) > li :is(pre, .vp-code-block-title, code, .hljs) {
+.obsidian-vuepress-steps > :where(ol, ul) > li :is(pre, .vp-code-block-title, code, .shiki, .hljs) {
   line-height: var(--line-height-normal, 1.5);
 }
 
@@ -820,6 +840,11 @@
   min-height: 0 !important;
   flex: none !important;
   white-space: normal !important;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-content > :is(pre, .vp-code-features, .vp-code-block-title),
+.obsidian-vuepress-prompt-container .vp-custom-container-content :is(pre, code, .line) {
+  white-space: pre !important;
 }
 
 .obsidian-vuepress-prompt-container .vp-custom-container-content > :first-child {
@@ -2618,6 +2643,12 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   border-top-right-radius: 0;
 }
 
+/* Extra air between title underline and first code line */
+.vp-code-block-title > pre,
+.vp-code-block-title > .vp-code-features > pre {
+  padding-top: 14px !important;
+}
+
 .vp-code-block-title > .vp-code-features > pre {
   margin-top: 0 !important;
   border-top-left-radius: 0 !important;
@@ -2628,9 +2659,9 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   position: relative;
   display: flex;
   align-items: center;
-  /* Pull code chrome up under the title bar (VuePress code.css parity) */
-  margin-bottom: -16px;
-  padding: 0 12px;
+  /* Slight overlap so chrome shares one surface; keep gap under the title label */
+  margin-bottom: -4px;
+  padding: 2px 12px 0;
   background-color: var(--code-background, var(--background-secondary));
   border-radius: 6px 6px 0 0;
   border-bottom: none;
@@ -2654,7 +2685,7 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 4px;
+  padding: 12px 4px 14px;
   font-size: 13px;
   font-weight: 500;
   line-height: 1;
@@ -3030,15 +3061,6 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   --vp-c-gray-soft: rgb(142 150 170 / 0.14);
   --vp-c-default-soft: var(--vp-c-gray-soft);
   --vp-c-border: var(--background-modifier-border);
-  /* Match Obsidian theme tokens so reading ≈ live preview */
-  --vp-hljs-keyword: var(--code-keyword);
-  --vp-hljs-string: var(--code-string);
-  --vp-hljs-number: var(--code-value);
-  --vp-hljs-comment: var(--code-comment);
-  --vp-hljs-title: var(--code-function);
-  --vp-hljs-built-in: var(--code-function);
-  --vp-hljs-attr: var(--code-property);
-  --vp-hljs-meta: var(--code-important);
   position: relative;
   margin: 16px 0;
   overflow-x: auto;
@@ -3158,72 +3180,7 @@ body.theme-dark .vp-code-features {
   content: "+";
 }
 
-/* highlight.js tokens */
-.vp-code-features code.hljs .hljs-keyword,
-.vp-code-features code.hljs .hljs-selector-tag,
-.vp-code-features code.hljs .hljs-literal,
-.vp-code-features code.hljs .hljs-section,
-.vp-code-features code.hljs .hljs-link {
-  color: var(--vp-hljs-keyword);
-}
-
-.vp-code-features code.hljs .hljs-string,
-.vp-code-features code.hljs .hljs-doctag,
-.vp-code-features code.hljs .hljs-regexp,
-.vp-code-features code.hljs .hljs-template-tag,
-.vp-code-features code.hljs .hljs-template-variable {
-  color: var(--vp-hljs-string);
-}
-
-.vp-code-features code.hljs .hljs-number,
-.vp-code-features code.hljs .hljs-bullet,
-.vp-code-features code.hljs .hljs-symbol {
-  color: var(--vp-hljs-number);
-}
-
-.vp-code-features code.hljs .hljs-comment,
-.vp-code-features code.hljs .hljs-quote,
-.vp-code-features code.hljs .hljs-deletion {
-  color: var(--vp-hljs-comment);
-  font-style: italic;
-}
-
-.vp-code-features code.hljs .hljs-title,
-.vp-code-features code.hljs .hljs-title.function_,
-.vp-code-features code.hljs .hljs-title.class_,
-.vp-code-features code.hljs .hljs-section {
-  color: var(--vp-hljs-title);
-}
-
-.vp-code-features code.hljs .hljs-built_in,
-.vp-code-features code.hljs .hljs-type,
-.vp-code-features code.hljs .hljs-params {
-  color: var(--vp-hljs-built-in);
-}
-
-.vp-code-features code.hljs .hljs-attr,
-.vp-code-features code.hljs .hljs-attribute,
-.vp-code-features code.hljs .hljs-variable,
-.vp-code-features code.hljs .hljs-name,
-.vp-code-features code.hljs .hljs-selector-attr,
-.vp-code-features code.hljs .hljs-selector-class,
-.vp-code-features code.hljs .hljs-selector-id {
-  color: var(--vp-hljs-attr);
-}
-
-.vp-code-features code.hljs .hljs-meta,
-.vp-code-features code.hljs .hljs-meta .hljs-keyword,
-.vp-code-features code.hljs .hljs-addition {
-  color: var(--vp-hljs-meta);
-}
-
-.vp-code-features code.hljs .hljs-emphasis {
-  font-style: italic;
-}
-
-.vp-code-features code.hljs .hljs-strong {
-  font-weight: 700;
-}
+/* Token colors come from Shiki inline styles (vitesse-light / vitesse-dark). */
 
 /* Focus: dim / blur non-focused lines (Shiki / VitePress convention) */
 .vp-code-features.has-focused code .line:not(.focused) {

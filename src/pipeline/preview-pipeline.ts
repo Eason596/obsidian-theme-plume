@@ -97,11 +97,24 @@ export class PreviewPipeline {
 
   async processSection(
     rootElement: HTMLElement,
-    ctx: MarkdownPostProcessorContext
+    ctx: MarkdownPostProcessorContext,
+    attempt = 0
   ): Promise<void> {
     const info = ctx.getSectionInfo(rootElement);
     if (!info) {
       this.unhideSection(rootElement);
+      // First paint (esp. vault open) can race before section info is ready —
+      // retry a few times so raw `::: code-tree` does not stick on screen.
+      if (attempt < 5 && rootElement.isConnected) {
+        const delayMs = attempt === 0 ? 0 : attempt === 1 ? 32 : attempt === 2 ? 80 : 160;
+        window.setTimeout(() => {
+          if (!rootElement.isConnected) return;
+          if (rootElement.dataset.plumeBlockKey) return;
+          void this.processSection(rootElement, ctx, attempt + 1).catch((err) => {
+            console.error("[theme-plume] section retry failed", err);
+          });
+        }, delayMs);
+      }
       return;
     }
 
@@ -109,7 +122,7 @@ export class PreviewPipeline {
     const blocks = this.options.getOrParseBlocks(docText, ctx.sourcePath);
     if (blocks.length === 0) {
       this.unhideSection(rootElement);
-      this.codeFenceTitles.decorateSection(
+      await this.codeFenceTitles.decorateSection(
         rootElement,
         docText,
         info.lineStart,
@@ -126,7 +139,7 @@ export class PreviewPipeline {
 
     if (overlapping.length === 0) {
       this.unhideSection(rootElement);
-      this.codeFenceTitles.decorateSection(
+      await this.codeFenceTitles.decorateSection(
         rootElement,
         docText,
         info.lineStart,
@@ -166,7 +179,7 @@ export class PreviewPipeline {
 
     if (!shouldRerender) {
       // Titles / Plume fence features only — plain code stays Obsidian-rendered
-      this.codeFenceTitles.decorateSection(
+      await this.codeFenceTitles.decorateSection(
         rootElement,
         slice,
         0,
@@ -193,7 +206,7 @@ export class PreviewPipeline {
       await renderInnerMarkdown(rootElement, slice, renderCtx);
       this.options.clearDocumentDirty?.(ctx.sourcePath);
       // Apply title bars / Plume fence features when present
-      this.codeFenceTitles.decorateSection(
+      await this.codeFenceTitles.decorateSection(
         rootElement,
         slice,
         0,

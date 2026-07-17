@@ -107,7 +107,7 @@ export async function renderNestedMarkdownContent(
   if (blocks.length === 1) {
     await invokeBlockRenderer(container, blocks[0], ctx);
     pruneEmptyMarkdownNodes(container);
-    decorateSubtreeCodeFences(container, content, ctx.defaultIconMode);
+    await decorateSubtreeCodeFences(container, content, ctx.defaultIconMode);
     return;
   }
   if (blocks.length > 0 && contentIsOnlyBlocksAndBlankLines(content, blocks)) {
@@ -135,7 +135,7 @@ export async function renderInnerMarkdown(
     await renderMarkdownInto(container, markdown, ctx);
     const fences = scanCodeFences(markdown);
     decorateCodeBlockTitles(container, fences, ctx.defaultIconMode);
-    decorateCodeBlockFeatures(container, fences);
+    await decorateCodeBlockFeatures(container, fences);
     pruneEmptyMarkdownNodes(container);
     return;
   }
@@ -178,7 +178,7 @@ export async function renderInnerMarkdown(
   {
     const fences = scanCodeFences(renderedMarkdown);
     decorateCodeBlockTitles(container, fences, ctx.defaultIconMode);
-    decorateCodeBlockFeatures(container, fences);
+    await decorateCodeBlockFeatures(container, fences);
   }
 
   const placeholders = Array.from(
@@ -198,7 +198,7 @@ export async function renderInnerMarkdown(
 
     try {
       await invokeBlockRenderer(node, block, ctx);
-      decorateSubtreeCodeFences(node, block.rawContent, ctx.defaultIconMode);
+      await decorateSubtreeCodeFences(node, block.rawContent, ctx.defaultIconMode);
     } catch (err) {
       console.error("[theme-plume] block render failed", err);
       if (ctx.settings?.debugRender) {

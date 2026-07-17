@@ -269,6 +269,10 @@ export interface FileTreePluginSettings {
   tabsLazyPanels: boolean;
   /** Log render failures and show debug hints in preview. */
   debugRender: boolean;
+  /** Shiki theme when Obsidian is in light mode (bundled theme id). */
+  shikiThemeLight: string;
+  /** Shiki theme when Obsidian is in dark mode (bundled theme id). */
+  shikiThemeDark: string;
 }
 
 export const DEFAULT_SETTINGS: FileTreePluginSettings = {
@@ -276,7 +280,9 @@ export const DEFAULT_SETTINGS: FileTreePluginSettings = {
   persistTabSelection: true,
   collapseLazyBodies: true,
   tabsLazyPanels: true,
-  debugRender: false
+  debugRender: false,
+  shikiThemeLight: "vitesse-light",
+  shikiThemeDark: "vitesse-dark"
 };
 
 export type BlockType =
