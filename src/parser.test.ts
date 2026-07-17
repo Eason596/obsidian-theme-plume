@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseAllBlocks, parseCollapseRawContent, parseTabsRawContent } from "./parser";
+import { parseAllBlocks, parseCollapseRawContent, parseFieldContent, parseFileTreeContentWithFence, parseFileTreeRawContent, parsePromptContainerHeader, parseTabsRawContent } from "./parser";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const complexPath = join(__dirname, "__fixtures__", "plume-complex-test.md");
@@ -154,6 +154,33 @@ content two
     expect(contentIsOnlyBlocks(grid!.rawContent, cards)).toBe(true);
   });
 
+  it("parses card-masonry responsive cols object", () => {
+    const md = `::: card-masonry cols="{sm:1,md:2,lg:3}" gap="12"
+
+::: card title="A"
+x
+:::
+
+:::
+`;
+    const block = parseAllBlocks(md)[0];
+    expect(block?.type).toBe("card-masonry");
+    expect((block!.attrs as { cols?: string; gap?: string }).cols).toBe("{sm:1,md:2,lg:3}");
+    expect((block!.attrs as { gap?: string }).gap).toBe("12");
+  });
+
+  it("parses card-masonry cols object with spaces / unquoted braces", () => {
+    const quoted = parseAllBlocks(
+      `::: card-masonry cols="{ sm: 1, md: 2, lg: 3 }"\n\n::: card title="A"\nx\n:::\n\n:::`
+    )[0];
+    expect((quoted!.attrs as { cols?: string }).cols).toBe("{ sm: 1, md: 2, lg: 3 }");
+
+    const bare = parseAllBlocks(
+      `::: card-masonry cols={sm:1, md:2, lg:3}\n\n::: card title="A"\nx\n:::\n\n:::`
+    )[0];
+    expect((bare!.attrs as { cols?: string }).cols).toBe("{sm:1, md:2, lg:3}");
+  });
+
   it("parses collapse preamble before list items", () => {
     const withIntro = `Intro paragraph.
 
@@ -189,5 +216,125 @@ content two
     const block = parseAllBlocks(md)[0];
     expect(block?.type).toBe("link-card");
     expect(block.rawContent).toBe("  **Rich** description");
+  });
+
+  it("parses ::: table attrs", () => {
+    const md = `::: table title="T" align="center" max-content copy="md" hl-rows="tip:1"
+
+| a | b |
+| - | - |
+| 1 | 2 |
+:::`;
+    const block = parseAllBlocks(md)[0];
+    expect(block?.type).toBe("table");
+    const attrs = block!.attrs as {
+      title?: string;
+      align?: string;
+      maxContent?: boolean;
+      copy?: string;
+      hlRows?: string;
+    };
+    expect(attrs.title).toBe("T");
+    expect(attrs.align).toBe("center");
+    expect(attrs.maxContent).toBe(true);
+    expect(attrs.copy).toBe("md");
+    expect(attrs.hlRows).toBe("tip:1");
+  });
+
+  it("parses ::: npm-to tabs", () => {
+    const md = `::: npm-to tabs="npm,pnpm,bun"
+\`\`\`sh
+npm i -D vue
+\`\`\`
+:::`;
+    const block = parseAllBlocks(md)[0];
+    expect(block?.type).toBe("npm-to");
+    expect((block!.attrs as { tabs?: string[] }).tabs).toEqual(["npm", "pnpm", "bun"]);
+  });
+
+  it("parses @[qrcode] embed and ::: qrcode", () => {
+    const embed = parseAllBlocks(`@[qrcode card title="Demo" align="center"](https://obsidian.md)`)[0];
+    expect(embed?.type).toBe("qrcode-embed");
+    expect((embed!.attrs as { text?: string; mode?: string; title?: string }).text).toBe(
+      "https://obsidian.md"
+    );
+    expect((embed!.attrs as { mode?: string }).mode).toBe("card");
+    expect((embed!.attrs as { title?: string }).title).toBe("Demo");
+
+    const block = parseAllBlocks(`::: qrcode title="多行"\nhello\nworld\n:::`)[0];
+    expect(block?.type).toBe("qrcode");
+    expect(block!.rawContent).toContain("hello");
+  });
+
+  it("parses @[pdf]/@[bilibili]/@[youtube] embeds", () => {
+    const pdf = parseAllBlocks(`@[pdf 2 height="400px"](https://example.com/a.pdf)`)[0];
+    expect(pdf?.type).toBe("pdf-embed");
+    expect((pdf!.attrs as { page?: number }).page).toBe(2);
+
+    const bili = parseAllBlocks(`@[bilibili](BV1EZ42187Hg)`)[0];
+    expect(bili?.type).toBe("bilibili-embed");
+    expect((bili!.attrs as { bvid?: string }).bvid).toBe("BV1EZ42187Hg");
+
+    const yt = parseAllBlocks(`@[youtube](dQw4w9WgXcQ)`)[0];
+    expect(yt?.type).toBe("youtube-embed");
+    expect((yt!.attrs as { id?: string }).id).toBe("dQw4w9WgXcQ");
+  });
+
+  it("parses align left/center/right/justify", () => {
+    for (const align of ["left", "center", "right", "justify"] as const) {
+      const block = parseAllBlocks(`::: ${align}\ntext\n:::`)[0];
+      expect(block?.type).toBe("align");
+      expect((block!.attrs as { align: string }).align).toBe(align);
+    }
+  });
+
+  it("parses prompt danger/important and details {open}", () => {
+    const danger = parsePromptContainerHeader("::: danger STOP");
+    expect(danger?.type).toBe("danger");
+    expect(danger?.title).toBe("STOP");
+
+    const details = parsePromptContainerHeader("::: details Open by default {open}");
+    expect(details?.type).toBe("details");
+    expect(details?.title).toBe("Open by default");
+    expect(details?.open).toBe(true);
+
+    const field = parseFieldContent(
+      "@type `string`\n@default `''`\n@required\n\nThe title.\n",
+      "title"
+    );
+    expect(field.name).toBe("title");
+    expect(field.type).toBe("string");
+    expect(field.default).toBe("''");
+    expect(field.required).toBe(true);
+    expect(field.description).toContain("The title.");
+  });
+
+  it("parses positional ::: field name", () => {
+    const md = `::: field propertyName
+@type number
+@optional
+
+desc
+:::`;
+    const block = parseAllBlocks(md)[0];
+    expect(block?.type).toBe("field");
+    expect((block!.attrs as { name: string }).name).toBe("propertyName");
+  });
+
+  it("parses tree CLI file-tree fence content", () => {
+    const tree = `
+.
+├── src/
+│   ├── a.ts
+│   └── b.ts
+└── package.json
+`;
+    const nodes = parseFileTreeContentWithFence(tree);
+    expect(nodes.map((n) => n.filename)).toEqual(["src", "package.json"]);
+    expect(nodes[0].type).toBe("folder");
+    expect(nodes[0].children.map((c) => c.filename)).toEqual(["a.ts", "b.ts"]);
+
+    const viaRaw = parseFileTreeRawContent(tree);
+    expect(viaRaw.length).toBe(2);
   });
 });

@@ -1,6 +1,8 @@
 import type { MarkdownPostProcessorContext, Plugin } from "obsidian";
 import { parseAllBlocks } from "../parser";
-import { renderInnerMarkdown, type BlockRenderContext } from "../render";
+import { processBadges, renderInnerMarkdown, type BlockRenderContext } from "../render";
+import { processIconifyIcons } from "../render/iconify-online";
+import { processLinkFavicons } from "../render/link-favicons";
 import type { FileTreeIconMode, ParsedBlock } from "../types";
 import { hashString } from "../utils/hash";
 import { CodeFenceTitleService } from "./code-fence-titles";
@@ -109,7 +111,7 @@ export class PreviewPipeline {
       this.unhideSection(rootElement);
       this.codeFenceTitles.decorateSection(
         rootElement,
-        info.text,
+        docText,
         info.lineStart,
         info.lineEnd
       );
@@ -126,7 +128,7 @@ export class PreviewPipeline {
       this.unhideSection(rootElement);
       this.codeFenceTitles.decorateSection(
         rootElement,
-        info.text,
+        docText,
         info.lineStart,
         info.lineEnd
       );
@@ -163,6 +165,13 @@ export class PreviewPipeline {
     const shouldRerender = isDirty || !snapshotInSync || rootElement.dataset.plumeBlockKey !== blockKey || rootElement.childElementCount === 0;
 
     if (!shouldRerender) {
+      // Still re-apply hljs / titles (Obsidian may have rewritten <code>)
+      this.codeFenceTitles.decorateSection(
+        rootElement,
+        slice,
+        0,
+        slice.split(/\r?\n/).length
+      );
       return;
     }
 
@@ -183,6 +192,24 @@ export class PreviewPipeline {
     try {
       await renderInnerMarkdown(rootElement, slice, renderCtx);
       this.options.clearDocumentDirty?.(ctx.sourcePath);
+      // Ensure fences in this section use hljs (reading + live preview)
+      this.codeFenceTitles.decorateSection(
+        rootElement,
+        slice,
+        0,
+        slice.split(/\r?\n/).length
+      );
+      processLinkFavicons(rootElement, {
+        app: this.options.plugin.app,
+        sourcePath: ctx.sourcePath
+      });
+      await processBadges(rootElement, {
+        app: this.options.plugin.app,
+        sourcePath: ctx.sourcePath,
+        component: this.options.plugin,
+        postProcessorCtx: ctx
+      });
+      await processIconifyIcons(rootElement);
     } catch (err) {
       console.error("[theme-plume] section render failed", err);
       const errEl = rootElement.createDiv({ cls: "plume-render-error" });

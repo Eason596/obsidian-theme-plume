@@ -1,0 +1,294 @@
+# Theme Plume
+
+> [English](./README.md) | **中文**
+
+在 Obsidian **阅读视图**中渲染 [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume) 的 Markdown 容器语法（`::: file-tree`、`::: tabs`、`::: steps` 等）。
+
+| | |
+|---|---|
+| 插件 ID | `theme-plume` |
+| 版本 | 1.1.0（见 `manifest.json`） |
+| 最低 Obsidian | 1.5.0 |
+| 协议 | [MIT](./LICENSE)（上游致谢见 [NOTICE](./NOTICE)） |
+
+## 项目来源
+
+本仓库是将 [vuepress-theme-plume](https://github.com/pengzhanbo/vuepress-theme-plume) 的 Markdown 增强能力**迁移到 Obsidian** 的独立插件，**并非**上游官方仓库。解析、渲染与样式对齐过程中大量使用了 **AI 辅助开发工具**（如 Cursor）。
+
+- 仅覆盖 Plume 的 **Markdown 容器与阅读视图渲染**，不包含 VuePress 站点主题、导航、博客、搜索等。
+- 上游主题为 MIT；本仓库同样 MIT，并保留上游版权声明，详见 [NOTICE](./NOTICE)。
+
+## 功能概览
+
+- `:::` 自定义容器：文件树、代码树、选项卡、步骤、提示框、卡片、表格、时间线等（见下表）。
+- 嵌入语法：`@[code-tree]`、`@[qrcode]`、`@[pdf]`、`@[bilibili]`、`@[youtube]`。
+- 容器内正文交给 **Obsidian 自带 Markdown 引擎**渲染，不内置 markdown-it。
+- 代码块信息串中的 `title="..."` 会显示为 Plume 风格标题栏（`src/pipeline/code-fence-titles.ts`）。
+- 行内 `<Badge type="tip" text="…">` 徽章（对齐 VuePress）。
+- 笔记 frontmatter：`link-icons` / `link-icon-size` 可为外链自动加网站 favicon。
+- 编辑时 **软刷新** Plume 块（含 Live Preview 已注册的 leading section）；命令面板可强制整页重建预览。
+- 文件树 / 代码树支持 `colored` / `simple` 图标模式（`simple` 不加载离线 Iconify SVG）。
+
+**组件示例稿**：[`examples/plume-components.md`](./examples/plume-components.md)（[English](./examples/plume-components.en.md)）— 每种容器的写法，可在 Obsidian 阅读视图中打开对照。
+
+**在线预览（GitHub Pages）**：<https://eason596.github.io/obsidian-theme-plume/> — 由 `npm run build:demo` 将示例稿渲染为静态 HTML（见下方 [发布预览站](#发布预览站-github-pages)）。
+
+## 安装
+
+### 社区插件（推荐）
+
+1. 在 Obsidian 中打开 **设置 → 社区插件 → 浏览**，搜索 **Theme Plume**。
+2. 安装并启用插件。
+
+若尚未出现在社区目录，可先用下方手动安装或 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 从 GitHub 安装。
+
+**提交社区插件**（维护者）：登录 [community.obsidian.md](https://community.obsidian.md) → **Plugins → New plugin** → 填写 `https://github.com/Eason596/obsidian-theme-plume`。首次提交前需已有与 `manifest.json` 中 `version` 一致的 [GitHub Release](https://github.com/Eason596/obsidian-theme-plume/releases)（含 `main.js`、`manifest.json`、`styles.css`）。
+
+### 手动安装（开发构建）
+
+```bash
+git clone https://github.com/Eason596/obsidian-theme-plume.git
+cd obsidian-theme-plume
+npm install
+npm run build
+```
+
+将以下文件复制到库内插件目录：
+
+```text
+<vault>/.obsidian/plugins/theme-plume/
+  manifest.json
+  main.js
+  styles.css
+```
+
+`main.js` 由 `npm run build` 生成，未提交到 Git。
+
+在 **设置 → 社区插件** 中启用 **Theme Plume**。
+
+> **升级提示**：插件 ID 现为 `theme-plume`。若曾安装 `obsidian-plume` 或 `vuepress-file-tree`，请删除旧插件目录后再安装，避免重复加载。
+
+## 网络使用说明
+
+本插件**默认可离线**使用大部分功能。以下能力仅在启用时访问网络（无服务端遥测、无账号要求）：
+
+| 功能 | 远程服务 | 何时触发 |
+|------|----------|----------|
+| `::: repo-card` | GitHub / Gitee REST API | 渲染含仓库 URL 的 repo-card 块 |
+| 文件树 / 代码树 `colored` 图标 | [Iconify API](https://api.iconify.design) | 离线包未覆盖的 Iconify 图标 ID |
+| 卡片 `icon=` 外链图片 | 用户指定的图片 URL | 渲染含 http(s) 图标的卡片 |
+| `link-icons: true` | Google Favicon 服务 | 笔记开启外链 favicon 时 |
+| `@[bilibili]` / `@[youtube]` | 官方嵌入页 iframe | 渲染对应嵌入块 |
+| `@[pdf](https://…)` | 用户指定的 PDF URL | 远程 PDF（库内路径不额外联网） |
+
+可在设置中将 **Default file-tree icon mode** 设为 `simple`，并避免使用 `repo-card` / 远程嵌入 / `link-icons`，即可在无网络环境下使用核心容器语法。
+
+## 支持的语法
+
+与 [Plume 文档](https://theme-plume.vuejs.press/) 大体一致；下表对应当前 `src/parser.ts` / `src/render.ts` 已实现的块类型。
+
+| 类别 | 语法 | 说明 |
+|------|------|------|
+| 文件树 | `::: file-tree` | 也支持围栏 ` ```file-tree` / `filetree` / `file_tree` / `tree`，以及 `├──` CLI 输出 |
+| 代码树 | `::: code-tree` | 单文件或虚拟目录树 + 代码高亮 |
+| 目录嵌入 | `@[code-tree](path)` | 从库内目录读取文本文件生成代码树；路径支持 `/`、`./`、`../`、`@source/` |
+| 选项卡 | `::: tabs` / `::: code-tabs` | 面板以 `@tab` / `@tab:active` 分隔；可用 `::: tabs#id` 或 `id="..."`；观感对齐 VuePress |
+| 包管理器命令 | `::: npm-to` | 单条 npm/npx 围栏自动展开为多包管理器 `code-tabs`；`tabs="npm,pnpm,yarn,bun,deno"` |
+| 步骤 | `::: steps` 或 `:::: steps` | 正文为 `1.` / `2.` 编号列表；Obsidian 内用自定义 `<ol>` 渲染，避免列表内 `:::` 被破坏 |
+| 提示 | `::: note` / `info` / `tip` / `warning` / `caution` / `danger` / `important` / `details` | `danger` 与 `caution` 同族；`details` 支持 `{open}` 默认展开；另支持 GitHub Alerts `> [!NOTE]` |
+| 卡片 | `::: card` / `card-grid` / `card-masonry` | `icon=` 支持 Lucide 名、图片 URL、Iconify（含 `twemoji:`）；masonry 支持 `cols="{sm,md,lg}"` |
+| 折叠 | `::: collapse` | 列表项为面板；`:+` 默认展开、`:-` 默认折叠；支持 `accordion`、`expand` |
+| 外链卡片 | `::: repo-card` / `link-card` / `image-card` | `repo-card` 会请求 GitHub / Gitee API（需网络） |
+| 表格 | `::: table` | `title` / `align` / `copy` / `max-content` / `full-width` / `hl-rows`/`hl-cols`/`hl-cells` |
+| 二维码 | `@[qrcode](text)` / `::: qrcode` | 本地生成；支持 `card`、`title`、`align`、`logo` 等 |
+| 媒体嵌入 | `@[pdf]` / `@[bilibili]` / `@[youtube]` | iframe；PDF 支持库内路径或 URL；视频默认 16:9 |
+| 布局 | `::: field` / `field-group` / `flex` / `left`/`center`/`right`/`justify` / `window` / `chat` | `field` 对齐 VuePress：位置名 + `@type`/`@default`/`@required` 等 |
+| 时间线 | `::: timeline` | 支持 `horizontal`、`card`、`placement`、`line` 等属性 |
+| 行内徽章 | `<Badge type="tip" text="…">` | 与 VuePress 相同 |
+| 外链图标 | frontmatter `link-icons` / `link-icon-size` | 为本页 http(s) 链接前缀网站 favicon |
+| 代码标题 / meta | ` ```ts title="app.ts"` / `{1,3}` / `:line-numbers` / `[!code …]` | 标题栏 + 行高亮 / focus / diff / 行号 / 折叠 |
+
+嵌套容器（如 Card → Collapse → code-tabs）在首段渲染时会递归解析内层块。
+
+完整可运行示例见 **[examples/plume-components.md](./examples/plume-components.md)**（每种组件一节，便于在库内打开验收）。
+
+### 片段预览
+
+````markdown
+::: tabs#demo
+@tab 安装
+```bash
+npm install
+```
+
+@tab:active 配置
+::: tip
+保存后切换阅读视图即可预览。
+:::
+:::
+
+::: npm-to
+```sh
+npm i -D theme-plume
+```
+:::
+
+@[qrcode](https://obsidian.md)
+
+@[code-tree](./src)
+
+```ts title="main.ts"
+export default class ObsidianPlumePlugin extends Plugin {}
+```
+````
+
+## 架构（v1.0）
+
+| 模块 | 职责 |
+|------|------|
+| `main.ts` | 插件入口、设置页、命令、解析缓存、`@[code-tree]` 目录扫描 |
+| `src/parser.ts` | 纯函数解析 `:::` 容器、collapse 列表、`@[code-tree]` 嵌入 |
+| `src/render.ts` | 各容器 DOM 渲染；经 `registerBlockRenderer` 分发 |
+| `src/render/pipeline.ts` | 占位符 + 递归 `renderInnerMarkdown` |
+| `src/render/blocks/collapse.ts` | Collapse 面板（合法 `<summary>`、懒加载正文） |
+| `src/render/tabbed-container.ts` | `tabs` / `code-tabs` 共用导航与面板 |
+| `src/render/tab-store.ts` | Tab 持久化与跨实例同步 |
+| `src/render/code-fence.ts` | 代码块标题栏 DOM |
+| `src/render/inline.ts` | 容器内行内 / 短语级 Markdown |
+| `src/markdown/plume-markdown.ts` | `MarkdownRenderer` + `MarkdownRenderChild` 生命周期 |
+| `src/pipeline/preview-pipeline.ts` | 与 Obsidian 分段后处理器协调（首段渲染、吸收内部段） |
+| `src/pipeline/preview-sync.ts` | 未保存缓冲区、脏标记、滚动位置 |
+| `src/pipeline/code-fence-titles.ts` | 代码块 `title` 签名增量修补 |
+| `src/generated/*` | 离线 Iconify / VuePress 文件图标映射（`npm run generate:icons`） |
+
+核心原则：**不重复实现 markdown-it**；顶层块在渲染前替换为 HTML 占位符，再填充组件并递归渲染内文。
+
+## 设置
+
+**设置 → Theme Plume**：
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| Default file-tree icon mode | `colored` | `::: file-tree` 未指定 `icon=` 时使用；`simple` 不加载彩色离线 SVG |
+| Remember tab selection | 开启 | `::: tabs#id` / `::: code-tabs#id` 选中项写入 `localStorage` |
+| Lazy collapse bodies | 开启 | 折叠面板首次展开前不渲染正文 |
+| Lazy tab panels | 开启 | 仅渲染当前选项卡；当前 tab 在块显示前渲染完成 |
+| Debug render errors | 关闭 | 块渲染失败时在预览中显示简短提示 |
+
+编辑后预览采用 **软刷新**（只重绘 Plume 块，不整页 `rerender`），减轻跳动。异常时可用命令 **Theme Plume: Force Refresh Current Preview** 做完整重建。
+
+## 命令面板
+
+| 命令 | 作用 |
+|------|------|
+| Theme Plume: Force Refresh Current Preview | 对当前笔记强制整页重建阅读视图 |
+| Theme Plume: Self Check | 显示版本、图标模式、预览窗数量等自检信息 |
+
+## 开发
+
+```bash
+npm install
+npm run check          # TypeScript
+npm test               # Vitest（src/parser.test.ts）
+npm run test:legacy    # 旧版脚本测试
+npm run dev            # 监听构建 + 生成图标
+npm run build          # 类型检查 + 图标生成 + 生产构建 main.js
+npm run build:demo     # 生成 docs/index.html（GitHub Pages 预览）
+```
+
+`build` / `dev` 会自动执行 `npm run generate:icons`（依赖 `@iconify-json/*`）。
+
+### 测试说明
+
+`src/parser.test.ts` 中部分用例读取**上级目录**的 `plume-complex-test.md`（多仓库工作区中的综合验收稿）。若单独克隆本仓库后 `npm test` 报找不到该文件，可将综合测试 Markdown 放到 `obsidian-theme-plume/../plume-complex-test.md`，或仅运行不依赖该 fixture 的用例。
+
+人工验收推荐使用本仓库内的 [`examples/plume-components.md`](./examples/plume-components.md)。
+
+## 与 VuePress / Plume 的差异
+
+| 能力 | Theme Plume | VuePress Plume |
+|------|----------------|----------------|
+| 站点主题、导航、博客、搜索 | 否 | 是 |
+| Markdown 容器与常用嵌入 | 是（见上表；够日常笔记） | 更完整（含 caniuse、REPL、encrypt、沙箱等） |
+| Mermaid / ECharts | 未内置 | 支持；可配合 Obsidian 其他插件 |
+| `::: table` / `::: npm-to` / `@[qrcode]` | 支持 | 支持 |
+| `@[pdf]` / `@[bilibili]` / `@[youtube]` | 支持（iframe） | 支持 |
+| `repo-card` | 需联网拉取仓库元数据 | 类似 |
+| `@[code-tree]` | 读取**当前库**内文本文件；跳过图片、音视频、Office、PDF 等 | 构建时读磁盘 |
+| 阅读视图分段 | 跨段块由 `preview-pipeline` 首段渲染并吸收后续段（`plume-section-absorbed`） | 无此限制 |
+| `<Badge>` HTML | 支持 | 支持 |
+| GitHub Alerts `> [!NOTE]` | 走 Obsidian callout，并套用 Plume 提示配色 | 转为 hint 容器 |
+| 笔记 `link-icons` frontmatter | 支持（Obsidian 独有） | 无对等属性 |
+| 实时预览 + 深嵌套 | 已软刷新 leading section；极端场景仍可能与纯 VuePress 有细微差异 | — |
+
+## 发布预览站（GitHub Pages）
+
+将 `examples/plume-components.md` 预渲染为静态页面，发布到 GitHub Pages。
+
+### 本地生成
+
+```bash
+npm install
+npm run build:demo
+```
+
+构建成功时终端会打印 `Wrote .../docs/index.html`。用浏览器直接打开该文件即可本地预览（`file://` 路径）。
+
+若进程以 `JavaScript heap out of memory` 退出，说明 `@[code-tree]` 嵌入了过大目录；示例已改为 `../src`，构建脚本也会跳过 `main.js`、`offlineIconData.ts` 等大文件。
+
+输出目录 `docs/`：
+
+| 文件 | 说明 |
+|------|------|
+| `index.html` | 生成的预览页（**不要手改**，改示例后重新 build） |
+| `styles.css` | 从插件根目录复制 |
+| `demo-base.css` | 页面布局与 Obsidian 风格 CSS 变量 |
+| `demo-client.js` | 选项卡切换等静态页交互 |
+
+### 首次在 GitHub 开启 Pages
+
+1. 推送代码到 `main`（含 `.github/workflows/pages.yml`）。
+2. 打开仓库 **Settings → Pages**。
+3. **Build and deployment → Source** 选 **GitHub Actions**（不要选 “Deploy from branch”）。
+4. 推送触发 workflow，或到 **Actions** 手动运行 **Deploy GitHub Pages**。
+5. 几分钟后访问：**https://eason596.github.io/obsidian-theme-plume/**
+
+之后每次改 `examples/plume-components.md` 或样式，推送到 `main` 会自动重建；也可本地 `npm run build:demo` 后把 `docs/index.html` 一并提交。
+
+> 预览站用 `marked` 渲染普通 Markdown，与 Obsidian 阅读视图在细节上可能略有差异；Plume 容器样式与 Obsidian 真环境更接近。选项卡、文件树/代码树、折叠手风琴、瀑布流等交互由 `docs/demo-client.js` 在浏览器中启用（静态 HTML 本身不含事件监听）。
+
+## 发布新版本
+
+维护者推送 semver 标签后，GitHub Actions 会自动构建并创建 Release（附件含 `main.js`、`manifest.json`、`styles.css`）：
+
+```bash
+# 1. 更新 manifest.json 与 package.json 中的 version
+# 2. 提交并推送
+git push origin main
+# 3. 打标签并推送（标签须与 manifest version 一致）
+git tag 1.0.1
+git push origin 1.0.1
+```
+
+## 发布到 GitHub
+
+已安装 [GitHub CLI](https://cli.github.com/) 并登录后：
+
+```cmd
+scripts\publish-github.cmd
+```
+
+## 许可证
+
+| 文件 | 说明 |
+|------|------|
+| [LICENSE](./LICENSE) | 本插件：MIT，Copyright (c) 2026 JY |
+| [NOTICE](./NOTICE) | 上游 vuepress-theme-plume（MIT, pengzhanbo）及第三方资源说明 |
+
+## 文档语言
+
+| 文档 | English | 中文 |
+|------|---------|------|
+| README | [README.md](./README.md) | [README.zh-CN.md](./README.zh-CN.md) |
+| Changelog | [CHANGELOG.md](./CHANGELOG.md) | [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md) |
+| 组件示例 | [plume-components.en.md](./examples/plume-components.en.md) | [plume-components.md](./examples/plume-components.md) |

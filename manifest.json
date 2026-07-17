@@ -1,9 +1,9 @@
 {
   "id": "theme-plume",
   "name": "Theme Plume",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "minAppVersion": "1.5.0",
-  "description": "Render VuePress Theme Plume markdown containers, including file-tree, tabs, steps, cards, and more.",
+  "description": "Render VuePress Theme Plume markdown containers and embeds (file-tree, tabs, table, npm-to, qrcode, pdf, video, cards, and more).",
   "author": "Eason596",
   "isDesktopOnly": false
 }

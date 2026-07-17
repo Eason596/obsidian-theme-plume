@@ -1,5 +1,39 @@
 # Changelog
 
+> **English** | [中文](./CHANGELOG.zh-CN.md)
+
+## Unreleased
+
+## 1.1.0
+
+### Added
+
+- `::: table` — title / align / copy (HTML·Markdown) / max-content / full-width / hl-rows·cols·cells.
+- `::: npm-to` — expand a single npm/npx fence into package-manager `code-tabs` (`tabs=`).
+- `@[qrcode]` / `::: qrcode` — local QR generation (`card`, `title`, `align`, `logo`, …).
+- `@[pdf]` / `@[bilibili]` / `@[youtube]` — iframe embeds (vault or remote PDF; official video players).
+- Frontmatter `link-icons` / `link-icon-size` — auto favicons before external links.
+- Tabs / code-tabs visual parity with VuePress (spacing, active bar, package-manager logos).
+- Bilingual docs: `README.zh-CN.md`, `CHANGELOG.zh-CN.md`, `examples/plume-components.en.md`.
+
+### Fixed
+
+- Align containers: parse `::: left` and `::: justify` (previously only `center` / `right`).
+- Field containers: VuePress positional name + `@type` / `@default` / `@required` body tags.
+- Prompt containers: `::: danger`, `::: important` styles, `::: details … {open}`, GitHub Alerts Plume styling.
+- Badges: VuePress `<Badge>` only (removed non-upstream `` `badge:` `` shorthand).
+- Collapse examples: correct `:+` / `:-` documentation.
+- Soft flush also refreshes Live Preview leading sections; code-tabs height / inactive panel hide.
+- Link-card description host uses `div` (safer nesting); masonry cells drop extra link-card margin.
+
+### Also
+
+- Code fence meta: `{1,3-5}` highlights, `[!code …]` notations, `:line-numbers`, `:collapsed-lines`.
+- File-tree CLI format (`├──` / `` ```tree `` / `` ```file-tree ``).
+- Card icons: Iconify `collection:name` including `twemoji:` (online/offline Iconify).
+- Card-masonry responsive `cols="{sm,md,lg}"`.
+- Window chrome: reload / share / add / copy decorative icons (VuePress parity).
+
 ## 1.0.3
 
 ### Fixed

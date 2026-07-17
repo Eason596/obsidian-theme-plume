@@ -62,13 +62,20 @@ function decorateCodeTabButton(
 ): void {
   const iconHost = document.createElement("span");
   iconHost.className = "vp-code-tab-icon ft-icon";
-  const desc = resolveNodeIcon(tab.title, "file", false, mode);
-  if (desc.colorClass) iconHost.classList.add(desc.colorClass);
-  if (desc.iconifyId) {
-    prepareIconifyIconElement(iconHost, desc.iconifyId);
+
+  const pmIcon = PACKAGE_MANAGER_ICONS[tab.title.trim().toLowerCase()];
+  if (pmIcon) {
+    prepareIconifyIconElement(iconHost, pmIcon);
     void processIconifyIcons(iconHost);
   } else {
-    setIcon(iconHost, desc.icon);
+    const desc = resolveNodeIcon(tab.title, "file", false, mode);
+    if (desc.colorClass) iconHost.classList.add(desc.colorClass);
+    if (desc.iconifyId) {
+      prepareIconifyIconElement(iconHost, desc.iconifyId);
+      void processIconifyIcons(iconHost);
+    } else {
+      setIcon(iconHost, desc.icon);
+    }
   }
   button.appendChild(iconHost);
 
@@ -77,6 +84,15 @@ function decorateCodeTabButton(
   label.textContent = tab.title;
   button.appendChild(label);
 }
+
+/** Iconify ids for npm-to / package-manager code-tabs (VuePress parity). */
+const PACKAGE_MANAGER_ICONS: Record<string, string> = {
+  npm: "logos:npm-icon",
+  pnpm: "logos:pnpm",
+  yarn: "logos:yarn",
+  bun: "logos:bun",
+  deno: "logos:deno"
+};
 
 /**
  * Shared tabs / code-tabs renderer (nav, persistence, sync, panel markdown).
@@ -181,34 +197,26 @@ export async function renderTabbedContainer(
     }
 
     activeValue = value;
-      for (const [v, btn] of buttons) {
-        const isActive = v === value;
-        btn.classList.toggle("active", isActive);
-        btn.setAttribute("aria-selected", isActive ? "true" : "false");
-        btn.tabIndex = isActive ? 0 : -1;
-        btn.setAttribute("aria-disabled", isActive ? "true" : "false");
-      }
-      for (const [v, panel] of panels) {
-        const isActive = v === value;
-        if (isActive) {
-          panel.classList.add("active");
-          // 切换时总是刷新内容
-          panel.empty();
-          const tab = tabByValue.get(v);
-          if (tab) {
-            void renderPanel(panel, tab.content);
-          }
-          // 动画：先透明，后淡入
-        } else {
-          panel.classList.remove("active");
-        }
-        panel.setAttribute("aria-hidden", isActive ? "false" : "true");
-        panel.setAttribute("aria-expanded", isActive ? "true" : "false");
-      }
+    for (const [v, btn] of buttons) {
+      const isActive = v === value;
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+      btn.tabIndex = isActive ? 0 : -1;
+      btn.setAttribute("aria-disabled", isActive ? "true" : "false");
+    }
+    for (const [v, panel] of panels) {
+      const isActive = v === value;
+      panel.classList.toggle("active", isActive);
+      panel.setAttribute("aria-hidden", isActive ? "false" : "true");
+      panel.setAttribute("aria-expanded", isActive ? "true" : "false");
+    }
 
-      if (lazyPanels) {
-        void ensurePanelRendered(value);
-      }
+    if (lazyPanels) {
+      void ensurePanelRendered(value);
+    } else {
+      // Eager mode: panels already filled; just toggle visibility via .active
+    }
+
     if (sharedId) {
       SHARED_TAB_ACTIVE.set(sharedId, value);
       if (persistSelection) {

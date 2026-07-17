@@ -9,8 +9,10 @@ export {
   scanCodeFenceTitles,
   scanCodeFences,
   decorateCodeBlockTitles,
+  decorateCodeBlockFeatures,
   decorateSubtreeCodeFences
 } from "./code-fence";
+export type { CodeFenceMeta } from "./code-fence";
 export { gatherMasonryItems } from "../render";
 export { renderTabbedContainer } from "./tabbed-container";
 export { renderCollapseBlock } from "./blocks/collapse";

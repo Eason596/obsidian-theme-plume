@@ -1,6 +1,6 @@
 import { App, MarkdownView, TFile, setIcon } from "obsidian";
 import { resolveNodeIcon } from "../icons";
-import { scanCodeFences, decorateCodeBlockTitles } from "../render";
+import { scanCodeFences, decorateCodeBlockTitles, decorateCodeBlockFeatures } from "../render";
 import type { FileTreeIconMode } from "../types";
 import { prepareIconifyIconElement, processIconifyIcons } from "../render/iconify-online";
 
@@ -23,6 +23,14 @@ export class CodeFenceTitleService {
     if (!this.lastTitleSig.has(file.path)) {
       this.lastTitleSig.set(file.path, sig);
     }
+  }
+
+  hasPendingDirty(sourcePath: string): boolean {
+    return this.dirtyPreviewFiles.has(sourcePath);
+  }
+
+  clearPendingDirty(sourcePath: string): void {
+    this.dirtyPreviewFiles.delete(sourcePath);
   }
 
   reconcileWithText(file: TFile, text: string): void {
@@ -56,13 +64,18 @@ export class CodeFenceTitleService {
     lineStart: number,
     lineEnd: number
   ): void {
-    const fences = scanCodeFences(fileText).filter(
-      (f) => f.openLine >= lineStart && f.openLine <= lineEnd
-    );
-    if (fences.length === 0) {
-      return;
+    const all = scanCodeFences(fileText);
+    let fences = all.filter((f) => f.openLine >= lineStart && f.openLine <= lineEnd);
+    // When caller passed section-local markdown with absolute lineStart/lineEnd,
+    // absolute filter yields nothing — fall back to all fences in the scanned text.
+    if (fences.length === 0 && all.length > 0) {
+      fences = all;
     }
-    decorateCodeBlockTitles(rootElement, fences, this.getDefaultIconMode());
+    if (fences.length > 0) {
+      decorateCodeBlockTitles(rootElement, fences, this.getDefaultIconMode());
+    }
+    // Always decorate with highlight.js (reading + live preview HTML fences)
+    decorateCodeBlockFeatures(rootElement, fences);
   }
 
   refreshDirtyPreviews(): void {
@@ -80,13 +93,23 @@ export class CodeFenceTitleService {
         continue;
       }
       if (view.getMode?.() !== "preview") {
+        // Keep dirty so entering reading mode can force previewMode.set.
         continue;
       }
       try {
-        view.previewMode.rerender(true);
-        this.dirtyPreviewFiles.delete(path);
+        // Soft invalidate — avoid previewMode.rerender(true) flash on layout-change.
+        for (const el of Array.from(
+          view.previewMode.containerEl.querySelectorAll<HTMLElement>(
+            "[data-plume-block-key], .plume-has-block"
+          )
+        )) {
+          delete el.dataset.plumeBlockKey;
+          el.classList.remove("plume-has-block");
+        }
+        // In-place title patch already ran in reconcileWithText; do not clear
+        // dirty here — mode-sync / flush owns clearing after a real sync.
       } catch (err) {
-        console.error("[theme-plume] preview rerender failed", err);
+        console.error("[theme-plume] preview invalidate failed", err);
       }
     }
   }
@@ -108,7 +131,8 @@ export class CodeFenceTitleService {
       )) {
         const pre = wrapper.querySelector("pre");
         if (pre) {
-          wrapper.replaceWith(pre);
+          const shell = pre.closest(".vp-code-features") ?? pre;
+          wrapper.replaceWith(shell);
           pre.removeAttribute("data-vp-code-title-done");
         }
       }
@@ -123,12 +147,15 @@ export class CodeFenceTitleService {
       const wrappers = Array.from(
         preview.querySelectorAll<HTMLElement>(".vp-code-block-title")
       );
-      if (wrappers.length !== fences.length) {
+      // Match by order among titled fences only; allow extra untitled code blocks.
+      const titled = fences.filter((f) => !!f.title);
+      if (wrappers.length === 0 || titled.length === 0) {
         return;
       }
-      for (let i = 0; i < wrappers.length; i += 1) {
+      const n = Math.min(wrappers.length, titled.length);
+      for (let i = 0; i < n; i += 1) {
         const wrapper = wrappers[i];
-        const newTitle = fences[i].title as string;
+        const newTitle = titled[i].title as string;
         if (wrapper.dataset.title === newTitle) {
           continue;
         }

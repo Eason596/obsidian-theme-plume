@@ -26,7 +26,23 @@ import type {
   TimelineContainerAttrs,
   TimelineLineStyle,
   TimelinePlacement,
-  AlignContainerType
+  AlignContainerType,
+  TableContainerAttrs,
+  NpmToContainerAttrs,
+  QrcodeContainerAttrs
+} from "./types";
+import { parseTableAttrs } from "./render/table-block";
+import { parseNpmToTabsAttr } from "./render/npm-to";
+import { parseQrcodeAttrs } from "./render/qrcode";
+import {
+  parseBilibiliEmbed,
+  parsePdfEmbed,
+  parseYoutubeEmbed
+} from "./render/media-embed";
+import type {
+  PdfEmbedAttrs,
+  BilibiliEmbedAttrs,
+  YoutubeEmbedAttrs
 } from "./types";
 
 const RE_FOCUS = /^\*\*(.*)\*\*(?:$|\s+)/;
@@ -158,13 +174,22 @@ function collectHtmlComponentBlock(
 }
 
 function parseAttrValue(text: string, key: string): string | undefined {
-  const attrRegex = new RegExp(`${key}=(?:"([^"]*)"|'([^']*)'|([^\\s]+))`, "i");
-  const match = text.match(attrRegex);
-  if (!match) {
-    return undefined;
+  // Quoted values first (supports spaces inside)
+  const quoted = text.match(
+    new RegExp(`${key}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i")
+  );
+  if (quoted) {
+    return quoted[1] ?? quoted[2] ?? undefined;
   }
 
-  return match[1] ?? match[2] ?? match[3] ?? undefined;
+  // Unquoted object literals: cols={sm:1, md:2, lg:3}
+  const braced = text.match(new RegExp(`${key}\\s*=\\s*(\\{[^}]*\\})`, "i"));
+  if (braced?.[1]) {
+    return braced[1];
+  }
+
+  const bare = text.match(new RegExp(`${key}\\s*=\\s*([^\\s]+)`, "i"));
+  return bare?.[1] ?? undefined;
 }
 
 function parseLinkCardAttrs(attrsStr: string): LinkCardContainerAttrs {
@@ -290,6 +315,14 @@ export function parseFileTreeRawContent(content: string): FileTreeNode[] {
     return [];
   }
 
+  // Prefer VuePress `tree` CLI format when box-drawing lines are present.
+  if (looksLikeTreeCliContent(trimmed)) {
+    const fromFence = parseFileTreeContentWithFence(trimmed);
+    if (fromFence.length > 0) {
+      return fromFence;
+    }
+  }
+
   const lines = trimmed.split(/\r?\n/);
   const root: FileTreeNode = {
     filename: "",
@@ -326,6 +359,71 @@ export function parseFileTreeRawContent(content: string): FileTreeNode[] {
       ...parseFileTreeNodeInfo(info)
     };
 
+    parent.children.push(node);
+    stack.push(node);
+  }
+
+  return root.children;
+}
+
+/** Match VuePress `tree` / `file-tree` fence lines: `├──` / `└──` with optional `│   ` prefixes. */
+const TREE_LINE_RE = /^((?:│ {3}| {4})*)([├└]── )(.+)$/u;
+
+export function looksLikeTreeCliContent(content: string): boolean {
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) continue;
+    if (t === ".") return true;
+    if (TREE_LINE_RE.test(line)) return true;
+  }
+  return false;
+}
+
+/**
+ * Parse `tree` command output (VuePress `parseFileTreeContentWithFence`).
+ */
+export function parseFileTreeContentWithFence(content: string): FileTreeNode[] {
+  const root: FileTreeNode = {
+    filename: "",
+    type: "folder",
+    expanded: true,
+    level: -1,
+    children: []
+  };
+  const stack: FileTreeNode[] = [root];
+  const lines = content.trimEnd().split(/\r?\n/);
+  const start = lines[0]?.trim() === "." ? 1 : 0;
+
+  for (let i = start; i < lines.length; i += 1) {
+    const line = lines[i];
+    const match = line.match(TREE_LINE_RE);
+    if (!match) {
+      continue;
+    }
+
+    const prefix = match[1] ?? "";
+    const info = (match[3] ?? "").trim();
+    const level = prefix.length / 4;
+
+    while (stack.length > 0 && stack[stack.length - 1].level >= level) {
+      stack.pop();
+    }
+
+    const parent = stack[stack.length - 1];
+    if (!parent) {
+      continue;
+    }
+
+    if (parent !== root && parent.type === "file") {
+      parent.type = "folder";
+    }
+
+    const node: FileTreeNode = {
+      level,
+      children: [],
+      ...parseFileTreeNodeInfo(info)
+    };
     parent.children.push(node);
     stack.push(node);
   }
@@ -765,25 +863,122 @@ export function parseFlexContainerAttrs(rest: string): FlexContainerAttrs {
   return attrs;
 }
 
+const PROMPT_TYPE_RE =
+  "note|info|tip|warning|caution|danger|details|important";
+
+/** Strip VuePress `{open}` flag from a details title rest string. */
+export function parsePromptTitleRest(rest: string): { title?: string; open: boolean } {
+  let open = false;
+  let title = rest.trim();
+  if (/\{\s*open\s*\}/i.test(title)) {
+    open = true;
+    title = title.replace(/\{\s*open\s*\}/i, "").trim();
+  }
+  return { title: title || undefined, open };
+}
+
 export function parsePromptContainerHeader(line: string): (PromptContainerAttrs & { markerLen: number }) | null {
-  const match = line.trim().match(/^(:{3,})\s*(note|info|tip|warning|caution|details|important)\b(.*)$/i);
+  const match = line.trim().match(new RegExp(`^(:{3,})\\s*(${PROMPT_TYPE_RE})\\b(.*)$`, "i"));
   if (!match) {
     return null;
   }
 
   const markerLen = match[1]?.length ?? 0;
   const type = (match[2] ?? "").toLowerCase() as PromptContainerAttrs["type"];
-  const title = (match[3] ?? "").trim() || undefined;
+  const { title, open } = parsePromptTitleRest(match[3] ?? "");
 
   return {
     type,
     title,
+    ...(type === "details" && open ? { open: true } : {}),
     markerLen
   };
 }
 
 export function isPromptContainerOpenMarker(text: string): boolean {
-  return /^:{3,}\s*(note|info|tip|warning|caution|details|important)\b/i.test(text.trim());
+  return new RegExp(`^:{3,}\\s*(${PROMPT_TYPE_RE})\\b`, "i").test(text.trim());
+}
+
+/** Tags that carry structured meaning in `::: field` bodies (VuePress Plume). */
+const FIELD_KNOWN_TAGS = new Set([
+  "name",
+  "type",
+  "default",
+  "required",
+  "deprecated",
+  "optional",
+  "description"
+]);
+
+const FIELD_BACKTICK_RE = /^`|`$/g;
+
+/**
+ * Parse `::: field` body into structured attrs (VuePress `@tag` syntax).
+ * `info` is the text after `::: field` on the opening line (positional name).
+ */
+export function parseFieldContent(content: string, info: string): FieldContainerAttrs {
+  const lines = content.split("\n");
+  const result: FieldContainerAttrs = {
+    name: info.trim(),
+    description: ""
+  };
+
+  let currentDesc = "";
+  const descriptions: string[] = [];
+
+  function flushDesc(): void {
+    if (currentDesc) {
+      descriptions.push(currentDesc);
+      currentDesc = "";
+    }
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (line.startsWith("@")) {
+      const spaceIdx = line.indexOf(" ");
+      let tag: string;
+      let rest: string;
+
+      if (spaceIdx === -1) {
+        tag = line.slice(1).toLowerCase();
+        rest = "";
+      } else {
+        tag = line.slice(1, spaceIdx).toLowerCase();
+        rest = line.slice(spaceIdx + 1).trim();
+      }
+
+      if (FIELD_KNOWN_TAGS.has(tag)) {
+        flushDesc();
+        switch (tag) {
+          case "name":
+          case "type":
+          case "default":
+            if (rest) result[tag] = rest.replace(FIELD_BACKTICK_RE, "");
+            break;
+          case "required":
+          case "deprecated":
+          case "optional":
+            result[tag] = true;
+            break;
+          case "description":
+            currentDesc = rest;
+            break;
+        }
+      } else {
+        if (currentDesc) currentDesc += "\n";
+        currentDesc += line;
+      }
+    } else {
+      if (currentDesc) currentDesc += "\n";
+      currentDesc += line;
+    }
+  }
+
+  flushDesc();
+  result.description = descriptions.join("\n");
+  return result;
 }
 
 export function isFileTreeCloseMarker(text: string): boolean {
@@ -1084,9 +1279,11 @@ const RE_FENCE_OPEN = /^(\s*)(`{3,}|~{3,})(.*)$/;
 const RE_DEFAULT_ICON_FALLBACK: FileTreeIconMode = "colored";
 
 const CODE_TREE_EMBED_RE_LINE = /^\s*@\[code-tree([^\]]*)\]\(([^)]*)\)\s*$/i;
+const QRCODE_EMBED_RE_LINE = /^\s*@\[qrcode([^\]]*)\]\(([^)]*)\)\s*$/i;
+const MEDIA_EMBED_RE_LINE = /^\s*@\[(pdf|bilibili|youtube)([^\]]*)\]\(([^)]*)\)\s*$/i;
 
 interface ContainerHeaderInfo {
-  type: "file-tree" | "code-tree" | "tabs" | "code-tabs" | "steps" | "prompt" | "collapse" | "card" | "card-grid" | "card-masonry" | "repo-card" | "link-card" | "image-card" | "field" | "field-group" | "flex" | "align" | "window" | "chat" | "timeline";
+  type: "file-tree" | "code-tree" | "tabs" | "code-tabs" | "steps" | "prompt" | "collapse" | "card" | "card-grid" | "card-masonry" | "repo-card" | "link-card" | "image-card" | "field" | "field-group" | "flex" | "align" | "window" | "chat" | "timeline" | "table" | "npm-to" | "qrcode";
   markerLen: number;
   attrs:
     | FileTreeContainerAttrs
@@ -1107,7 +1304,10 @@ interface ContainerHeaderInfo {
     | AlignContainerAttrs
     | WindowContainerAttrs
     | ChatContainerAttrs
-    | TimelineContainerAttrs;
+    | TimelineContainerAttrs
+    | TableContainerAttrs
+    | NpmToContainerAttrs
+    | QrcodeContainerAttrs;
 }
 
 function detectContainerOpen(line: string, fallbackIcon: FileTreeIconMode): ContainerHeaderInfo | null {
@@ -1259,8 +1459,12 @@ function detectContainerOpen(line: string, fallbackIcon: FileTreeIconMode): Cont
   }
 
   if (keyword === "field") {
-    const name = parseAttrValue(rest, "name") ?? "";
-    if (!name) return null;
+    // VuePress: positional name (`::: field propertyName`) or legacy attrs.
+    // Body `@tag` lines are merged at render time via `parseFieldContent`.
+    const nameFromAttr = parseAttrValue(rest, "name");
+    const positional =
+      rest.includes("=") ? "" : (rest.trim().split(/\s+/)[0] ?? "");
+    const name = nameFromAttr ?? positional ?? "";
     const attrs: FieldContainerAttrs = { name };
     const type = parseAttrValue(rest, "type");
     if (type) attrs.type = type;
@@ -1280,7 +1484,12 @@ function detectContainerOpen(line: string, fallbackIcon: FileTreeIconMode): Cont
     return { type: "flex", markerLen, attrs: parseFlexContainerAttrs(rest) };
   }
 
-  if (keyword === "center" || keyword === "right") {
+  if (
+    keyword === "left" ||
+    keyword === "center" ||
+    keyword === "right" ||
+    keyword === "justify"
+  ) {
     return { type: "align", markerLen, attrs: { align: keyword as AlignContainerType } };
   }
 
@@ -1324,22 +1533,39 @@ function detectContainerOpen(line: string, fallbackIcon: FileTreeIconMode): Cont
     return { type: "timeline", markerLen, attrs };
   }
 
+  if (keyword === "table") {
+    return { type: "table", markerLen, attrs: parseTableAttrs(rest) };
+  }
+
+  if (keyword === "npm-to") {
+    const attrs: NpmToContainerAttrs = {
+      tabs: parseNpmToTabsAttr(rest)
+    };
+    return { type: "npm-to", markerLen, attrs };
+  }
+
+  if (keyword === "qrcode") {
+    return { type: "qrcode", markerLen, attrs: parseQrcodeAttrs(rest) };
+  }
+
   if (
     keyword === "note" ||
     keyword === "info" ||
     keyword === "tip" ||
     keyword === "warning" ||
     keyword === "caution" ||
+    keyword === "danger" ||
     keyword === "details" ||
     keyword === "important"
   ) {
-    const title = rest.trim() || undefined;
+    const { title, open } = parsePromptTitleRest(rest);
     return {
       type: "prompt",
       markerLen,
       attrs: {
         type: keyword,
-        title
+        title,
+        ...(keyword === "details" && open ? { open: true } : {})
       }
     };
   }
@@ -1407,6 +1633,70 @@ export function parseAllBlocks(
             markerLen: 0,
             attrs: { ...attrs, dirPath } as CodeTreeContainerAttrs & { dirPath: string }
           });
+        }
+      }
+      i += 1;
+      continue;
+    }
+
+    const qrEmbed = line.match(QRCODE_EMBED_RE_LINE);
+    if (qrEmbed) {
+      const info = qrEmbed[1] ?? "";
+      const text = (qrEmbed[2] ?? "").trim();
+      if (text) {
+        const attrs = parseQrcodeAttrs(info);
+        attrs.text = text;
+        blocks.push({
+          type: "qrcode-embed",
+          startLine: i,
+          endLine: i,
+          rawContent: text,
+          markerLen: 0,
+          attrs
+        });
+      }
+      i += 1;
+      continue;
+    }
+
+    const mediaEmbed = line.match(MEDIA_EMBED_RE_LINE);
+    if (mediaEmbed) {
+      const kind = (mediaEmbed[1] ?? "").toLowerCase();
+      const info = mediaEmbed[2] ?? "";
+      const payload = (mediaEmbed[3] ?? "").trim();
+      if (payload) {
+        if (kind === "pdf") {
+          const attrs: PdfEmbedAttrs = parsePdfEmbed(info, payload);
+          blocks.push({
+            type: "pdf-embed",
+            startLine: i,
+            endLine: i,
+            rawContent: payload,
+            markerLen: 0,
+            attrs
+          });
+        } else if (kind === "bilibili") {
+          const attrs: BilibiliEmbedAttrs = parseBilibiliEmbed(info, payload);
+          blocks.push({
+            type: "bilibili-embed",
+            startLine: i,
+            endLine: i,
+            rawContent: payload,
+            markerLen: 0,
+            attrs
+          });
+        } else if (kind === "youtube") {
+          const attrs: YoutubeEmbedAttrs = parseYoutubeEmbed(info, payload);
+          if (attrs.id) {
+            blocks.push({
+              type: "youtube-embed",
+              startLine: i,
+              endLine: i,
+              rawContent: payload,
+              markerLen: 0,
+              attrs
+            });
+          }
         }
       }
       i += 1;

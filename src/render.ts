@@ -7,6 +7,7 @@ import { prepareIconifyIconElement, processIconifyIcons } from "./render/iconify
 import { renderCollapseBlock } from "./render/blocks/collapse";
 import {
   decorateCodeBlockTitles,
+  decorateCodeBlockFeatures,
   scanCodeFenceTitles,
   scanCodeFences
 } from "./render/code-fence";
@@ -34,7 +35,9 @@ import {
   parseAllBlocks,
   parseCodeTreeFileNodes,
   parseCodeTreeRawContent,
+  parseFieldContent,
   parseFileTreeRawContent,
+  parsePromptTitleRest,
   parseStepsRawContent,
   dedentStepBody,
   splitFlexSegments,
@@ -50,8 +53,10 @@ export {
   scanCodeFenceTitles,
   scanCodeFences,
   decorateCodeBlockTitles,
+  decorateCodeBlockFeatures,
   decorateSubtreeCodeFences
 } from "./render/code-fence";
+export type { CodeFenceMeta } from "./render/code-fence";
 import type {
   CardContainerAttrs,
   CardGridContainerAttrs,
@@ -79,8 +84,33 @@ import type {
   TimelineItemMeta,
   TimelineLineStyle,
   TimelinePlacement,
-  AlignContainerAttrs
+  AlignContainerAttrs,
+  TableContainerAttrs,
+  NpmToContainerAttrs,
+  QrcodeContainerAttrs,
+  PdfEmbedAttrs,
+  BilibiliEmbedAttrs,
+  YoutubeEmbedAttrs
 } from "./types";
+import {
+  applyTableHighlights,
+  normalizeTableCopy
+} from "./render/table-block";
+import {
+  npmToCodeTabsMarkdown,
+  type NpmToPackageManager
+} from "./render/npm-to";
+import {
+  generateQrDataUrl,
+  isHttpLike
+} from "./render/qrcode";
+import {
+  buildBilibiliSrc,
+  buildPdfSrc,
+  buildYoutubeSrc,
+  createPdfIframe,
+  createVideoIframe
+} from "./render/media-embed";
 
 interface RenderTreeOptions {
   nodes: FileTreeNode[];
@@ -115,7 +145,7 @@ interface PromptPlaceholderBlock {
 
 const ELLIPSIS = "\u2026";
 let commentRenderToken = 0;
-const PROMPT_HEADER_RE = /^(\s*)(:{3,})\s*(note|info|tip|warning|caution|details|important)\b(.*)$/i;
+const PROMPT_HEADER_RE = /^(\s*)(:{3,})\s*(note|info|tip|warning|caution|danger|details|important)\b(.*)$/i;
 const PROMPT_PLACEHOLDER_CLASS = "vp-prompt-placeholder";
 const PROMPT_PLACEHOLDER_ATTR = "data-vp-prompt-id";
 const PROMPT_DEFAULT_TITLES: Record<PromptContainerType, string> = {
@@ -124,6 +154,7 @@ const PROMPT_DEFAULT_TITLES: Record<PromptContainerType, string> = {
   tip: "TIP",
   warning: "WARNING",
   caution: "CAUTION",
+  danger: "DANGER",
   details: "DETAILS",
   important: "IMPORTANT"
 };
@@ -133,6 +164,7 @@ const PROMPT_TYPE_ICONS: Record<PromptContainerType, string | null> = {
   tip: "lightbulb",
   warning: "alert-triangle",
   caution: "alert-octagon",
+  danger: "alert-octagon",
   // details uses the native chevron ::before; skip the icon
   details: null,
   important: "alert-circle"
@@ -233,11 +265,12 @@ function parsePromptHeaderLine(
   const indent = match[1] ?? "";
   const markerLen = match[2]?.length ?? 0;
   const type = (match[3] ?? "").toLowerCase() as PromptContainerType;
-  const title = (match[4] ?? "").trim() || undefined;
+  const { title, open } = parsePromptTitleRest(match[4] ?? "");
 
   return {
     type,
     title,
+    ...(type === "details" && open ? { open: true } : {}),
     markerLen,
     indent
   };
@@ -357,7 +390,8 @@ function collectPromptPlaceholderBlocks(markdown: string): {
     blocks.set(id, {
       attrs: {
         type: header.type,
-        title: header.title
+        title: header.title,
+        ...(header.open ? { open: true } : {})
       },
       content: finalBody.join("\n").replace(/^\n+|\n+$/g, "")
     });
@@ -900,11 +934,16 @@ export function renderCodeTreeInto(container: HTMLElement, options: RenderCodeTr
 export function renderPromptContainerInto(container: HTMLElement, options: RenderPromptContainerOptions): void {
   const type = options.attrs.type;
   const title = options.attrs.title?.trim() || PROMPT_DEFAULT_TITLES[type];
-  const content = options.content.trim();
+  const content = dedentStepBody(options.content.replace(/^\n+|\n+$/g, ""));
+  const bodyMarkdown = normalizePromptBodyMarkdown(content);
 
   if (type === "details") {
     const details = document.createElement("details");
-    details.className = "vp-custom-container obsidian-vuepress-prompt-container details";
+    details.className =
+      "vp-custom-container obsidian-vuepress-prompt-container details vp-prompt--details";
+    if (options.attrs.open) {
+      details.open = true;
+    }
     container.appendChild(details);
 
     const summary = document.createElement("summary");
@@ -917,12 +956,18 @@ export function renderPromptContainerInto(container: HTMLElement, options: Rende
     body.className = "vp-custom-container-content";
     details.appendChild(body);
 
-    renderMarkdownWithPromptContainers(body, content, options.markdownContext);
+    renderMarkdownWithPromptContainers(
+      body,
+      bodyMarkdown,
+      options.markdownContext
+    );
+    unlockPromptHostHeight(details);
     return;
   }
 
   const wrapper = document.createElement("div");
-  wrapper.className = `vp-custom-container obsidian-vuepress-prompt-container ${type}`;
+  wrapper.className =
+    `vp-custom-container obsidian-vuepress-prompt-container vp-prompt--${type}`;
   container.appendChild(wrapper);
 
   const titleElement = document.createElement("p");
@@ -935,7 +980,13 @@ export function renderPromptContainerInto(container: HTMLElement, options: Rende
   body.className = "vp-custom-container-content";
   wrapper.appendChild(body);
 
-  renderMarkdownWithPromptContainers(body, content, options.markdownContext);
+  renderMarkdownWithPromptContainers(
+    body,
+    bodyMarkdown,
+    options.markdownContext
+  );
+  pruneEmptyMarkdownNodes(body);
+  unlockPromptHostHeight(wrapper);
 }
 
 export function renderStepsInto(container: HTMLElement, options: RenderStepsOptions): void {
@@ -1185,6 +1236,37 @@ export async function renderBlock(
       await renderTimelineBlock(container, block.rawContent, block.attrs as TimelineContainerAttrs, ctx);
       return;
     }
+
+    case "table": {
+      await renderTableBlock(container, block.rawContent, block.attrs as TableContainerAttrs, ctx);
+      return;
+    }
+
+    case "npm-to": {
+      await renderNpmToBlock(container, block.rawContent, block.attrs as NpmToContainerAttrs, ctx);
+      return;
+    }
+
+    case "qrcode":
+    case "qrcode-embed": {
+      await renderQrcodeBlock(container, block.rawContent, block.attrs as QrcodeContainerAttrs, ctx);
+      return;
+    }
+
+    case "pdf-embed": {
+      renderPdfEmbed(container, block.attrs as PdfEmbedAttrs, ctx);
+      return;
+    }
+
+    case "bilibili-embed": {
+      renderBilibiliEmbed(container, block.attrs as BilibiliEmbedAttrs);
+      return;
+    }
+
+    case "youtube-embed": {
+      renderYoutubeEmbed(container, block.attrs as YoutubeEmbedAttrs);
+      return;
+    }
   }
 }
 
@@ -1261,7 +1343,6 @@ async function renderStepsContent(
       const body = dedentStepBody(item.body);
       await renderInnerMarkdown(li, body, ctx);
       pruneEmptyMarkdownNodes(li);
-      decorateCodeBlockTitles(li, scanCodeFenceTitles(body), ctx.defaultIconMode);
     } else {
       li.textContent = item.body;
     }
@@ -1282,13 +1363,20 @@ async function renderPromptBlock(
   attrs: PromptContainerAttrs,
   ctx: BlockRenderContext
 ): Promise<void> {
-  const content = rawContent.replace(/^\n+|\n+$/g, "");
+  // List-nested ::: tip bodies keep leading tabs; without dedent Markdown
+  // treats them as indented <pre><code>, then code-fence chrome blows up height.
+  const content = dedentStepBody(rawContent.replace(/^\n+|\n+$/g, ""));
   const type = attrs.type;
   const title = attrs.title?.trim() || PROMPT_DEFAULT_TITLES[type];
+  const bodyMarkdown = normalizePromptBodyMarkdown(content);
 
   if (type === "details") {
     const details = document.createElement("details");
-    details.className = "vp-custom-container obsidian-vuepress-prompt-container details";
+    details.className =
+      "vp-custom-container obsidian-vuepress-prompt-container details vp-prompt--details";
+    if (attrs.open) {
+      details.open = true;
+    }
     container.appendChild(details);
 
     const summary = document.createElement("summary");
@@ -1301,12 +1389,15 @@ async function renderPromptBlock(
     body.className = "vp-custom-container-content";
     details.appendChild(body);
 
-    await renderInnerMarkdown(body, content, ctx);
+    await renderInnerMarkdown(body, bodyMarkdown, ctx);
+    pruneEmptyMarkdownNodes(body);
+    unlockPromptHostHeight(details);
     return;
   }
 
   const wrapper = document.createElement("div");
-  wrapper.className = `vp-custom-container obsidian-vuepress-prompt-container ${type}`;
+  // Use vp-prompt--{type} (not bare "tip") to avoid clashing with theme `.tip` rules
+  wrapper.className = `vp-custom-container obsidian-vuepress-prompt-container vp-prompt--${type}`;
   container.appendChild(wrapper);
 
   const titleElement = document.createElement("p");
@@ -1319,7 +1410,60 @@ async function renderPromptBlock(
   body.className = "vp-custom-container-content";
   wrapper.appendChild(body);
 
-  await renderInnerMarkdown(body, content, ctx);
+  await renderInnerMarkdown(body, bodyMarkdown, ctx);
+  pruneEmptyMarkdownNodes(body);
+  unlockPromptHostHeight(wrapper);
+}
+
+/** Separate non-empty lines into paragraphs so soft breaks become real wraps. */
+function normalizePromptBodyMarkdown(content: string): string {
+  const trimmed = content.replace(/^\n+|\n+$/g, "");
+  if (!trimmed) return "";
+  const lines = trimmed.split(/\r?\n/);
+  const parts: string[] = [];
+  let blankRun = 0;
+  for (const line of lines) {
+    if (!line.trim()) {
+      blankRun += 1;
+      continue;
+    }
+    if (parts.length > 0) {
+      // One blank → new paragraph; keep extra blanks as paragraph breaks only
+      parts.push(blankRun >= 2 ? "\n\n\n" : "\n\n");
+    }
+    blankRun = 0;
+    parts.push(line.trimEnd());
+  }
+  return parts.join("");
+}
+
+function unlockPromptHostHeight(promptEl: HTMLElement): void {
+  const apply = (): void => {
+    if (!promptEl.isConnected) return;
+    promptEl.style.height = "fit-content";
+    promptEl.style.minHeight = "0";
+    promptEl.style.maxHeight = "none";
+    let node: HTMLElement | null = promptEl.parentElement;
+    while (node) {
+      if (
+        node.classList.contains("markdown-preview-section")
+        || node.classList.contains("plume-has-block")
+        || node.classList.contains("cm-preview-code-block")
+      ) {
+        node.style.minHeight = "0";
+        node.style.height = "auto";
+      }
+      if (node.classList.contains("markdown-preview-sizer")) {
+        break;
+      }
+      node = node.parentElement;
+    }
+  };
+  apply();
+  window.requestAnimationFrame(apply);
+  window.setTimeout(apply, 0);
+  window.setTimeout(apply, 50);
+  window.setTimeout(apply, 200);
 }
 
 async function renderCardBlock(
@@ -1339,8 +1483,10 @@ async function renderCardBlock(
   if (title || icon) {
     const header = document.createElement("header");
     header.className = "title";
+    // Attach before painting icons — Obsidian setIcon only works on connected nodes.
+    wrapper.appendChild(header);
     if (icon) {
-      applyInlineIcon(header, icon, "vp-card-icon");
+      applyInlineIcon(header, icon, "vp-card-icon vp-icon");
     }
     if (title) {
       const titleEl = document.createElement("span");
@@ -1348,7 +1494,6 @@ async function renderCardBlock(
       titleEl.textContent = title;
       header.appendChild(titleEl);
     }
-    wrapper.appendChild(header);
   }
 
   const body = document.createElement("section");
@@ -1358,11 +1503,68 @@ async function renderCardBlock(
   await renderNestedMarkdownContent(body, content, ctx);
 }
 
+interface MasonryColsConfig {
+  fixed?: number;
+  sm?: number;
+  md?: number;
+  lg?: number;
+}
+
 function parseColsAttr(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n <= 0) return undefined;
   return n;
+}
+
+/** Parse masonry `cols` as number or VuePress `{sm,md,lg}` object string. */
+function parseMasonryColsAttr(value: string | undefined): MasonryColsConfig | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (trimmed.startsWith("{")) {
+    const cfg: MasonryColsConfig = {};
+    const sm = trimmed.match(/\bsm\s*:\s*(\d+)/i);
+    const md = trimmed.match(/\bmd\s*:\s*(\d+)/i);
+    const lg = trimmed.match(/\blg\s*:\s*(\d+)/i);
+    if (sm) cfg.sm = Number.parseInt(sm[1], 10);
+    if (md) cfg.md = Number.parseInt(md[1], 10);
+    if (lg) cfg.lg = Number.parseInt(lg[1], 10);
+    if (cfg.sm != null || cfg.md != null || cfg.lg != null) return cfg;
+    return undefined;
+  }
+  const fixed = parseColsAttr(trimmed);
+  return fixed ? { fixed } : undefined;
+}
+
+/**
+ * VuePress CardMasonry uses viewport media queries:
+ * - sm: < 640px
+ * - md: >= 640px and < 960px
+ * - lg: >= 960px
+ *
+ * Obsidian note panes are often ~700px wide even on large screens, so using
+ * container width would leave responsive cols stuck on `md`. Match VuePress.
+ */
+function resolveMasonryColumnCount(cols?: MasonryColsConfig): number {
+  if (cols?.fixed) {
+    return cols.fixed;
+  }
+
+  const isLg =
+    typeof window !== "undefined" && window.matchMedia("(min-width: 960px)").matches;
+  const isMd =
+    typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
+
+  if (cols?.sm != null || cols?.md != null || cols?.lg != null) {
+    if (isLg) return cols.lg ?? cols.md ?? cols.sm ?? 3;
+    if (isMd) return cols.md ?? cols.sm ?? 2;
+    return cols.sm ?? 2;
+  }
+
+  // VuePress default: { sm: 2, md: 2, lg: 3 }
+  if (isLg) return 3;
+  if (isMd) return 2;
+  return 2;
 }
 
 async function renderCardGridBlock(
@@ -1418,19 +1620,6 @@ function measureMasonryItemHeight(item: HTMLElement): number {
   return Math.ceil(rect.height + mt + mb);
 }
 
-function resolveMasonryColumnCount(wrapperWidth: number, fixedCols?: number): number {
-  if (fixedCols) {
-    return fixedCols;
-  }
-  if (wrapperWidth >= 960) {
-    return 3;
-  }
-  if (wrapperWidth >= 640) {
-    return 2;
-  }
-  return 2;
-}
-
 function bindMasonryImageLoads(root: HTMLElement, onChange: () => void): void {
   for (const img of Array.from(root.querySelectorAll<HTMLImageElement>("img"))) {
     if (img.dataset.plumeMasonryImgBound === "1") {
@@ -1459,7 +1648,7 @@ async function renderCardMasonryBlock(
   const content = rawContent.replace(/^\n+|\n+$/g, "");
   if (!content) return;
 
-  const fixedCols = parseColsAttr(attrs.cols);
+  const colsConfig = parseMasonryColsAttr(attrs.cols);
   let gap = 16;
   if (attrs.gap) {
     const g = Number.parseInt(attrs.gap, 10);
@@ -1479,7 +1668,6 @@ async function renderCardMasonryBlock(
     item.classList.add("vp-card-masonry-cell");
   }
 
-  let lastCols = 0;
   let scheduled = false;
   let layouting = false;
   let layoutAttempts = 0;
@@ -1496,6 +1684,12 @@ async function renderCardMasonryBlock(
 
       wrapper.style.setProperty("--vp-card-masonry-cols", String(N));
       wrapper.dataset.cols = String(N);
+      for (const name of Array.from(wrapper.classList)) {
+        if (/^cols-\d+$/.test(name)) {
+          wrapper.classList.remove(name);
+        }
+      }
+      wrapper.classList.add(`cols-${N}`);
 
       const cols: HTMLElement[] = [];
       for (let i = 0; i < N; i += 1) {
@@ -1529,7 +1723,6 @@ async function renderCardMasonryBlock(
         colHeights[idx] += heights[i] + gap;
       }
 
-      lastCols = N;
       bindMasonryImageLoads(wrapper, schedule);
     } finally {
       layouting = false;
@@ -1547,13 +1740,13 @@ async function renderCardMasonryBlock(
       if (layoutAttempts < 40) {
         window.requestAnimationFrame(layout);
       } else {
-        distribute(fixedCols ?? 1);
+        distribute(colsConfig?.fixed ?? resolveMasonryColumnCount(colsConfig));
       }
       return;
     }
 
     layoutAttempts = 0;
-    distribute(resolveMasonryColumnCount(width, fixedCols));
+    distribute(resolveMasonryColumnCount(colsConfig));
   };
 
   const schedule = (): void => {
@@ -1573,19 +1766,25 @@ async function renderCardMasonryBlock(
     if (layouting) {
       return;
     }
-    const width = wrapper.clientWidth;
-    if (width <= 0) {
+    if (wrapper.clientWidth <= 0) {
       return;
     }
-    const N = resolveMasonryColumnCount(width, fixedCols);
-    if (N !== lastCols) {
-      schedule();
-      return;
-    }
+    // Re-pack when pane width changes (heights) or when cols breakpoint flips
     schedule();
   });
   ro.observe(wrapper);
-  ctx.component.register(() => ro.disconnect());
+
+  const mqMd = window.matchMedia("(min-width: 640px)");
+  const mqLg = window.matchMedia("(min-width: 960px)");
+  const onBreakpoint = (): void => schedule();
+  mqMd.addEventListener("change", onBreakpoint);
+  mqLg.addEventListener("change", onBreakpoint);
+
+  ctx.component.register(() => {
+    ro.disconnect();
+    mqMd.removeEventListener("change", onBreakpoint);
+    mqLg.removeEventListener("change", onBreakpoint);
+  });
 }
 
 /* ===== RepoCard ===== */
@@ -1808,13 +2007,7 @@ async function renderLinkCardBlock(
   }
 
   if (attrs.icon) {
-    const iconHost = link.createSpan({ cls: "vp-link-card-icon" });
-    try {
-      setIcon(iconHost, attrs.icon);
-    } catch {
-      // Unknown icon name — drop the host silently rather than throw.
-      iconHost.remove();
-    }
+    applyInlineIcon(link, attrs.icon, "vp-link-card-icon vp-icon");
   }
 
   const titleText = attrs.title?.trim() || href;
@@ -1827,12 +2020,13 @@ async function renderLinkCardBlock(
   } else {
     const bodyMd = rawContent.replace(/^\n+|\n+$/g, "");
     if (bodyMd) {
-      const descHost = body.createEl("p", { cls: "vp-link-card-desc" });
+      // Use div (not p) so nested block markdown / lists stay valid HTML.
+      const descHost = body.createDiv({ cls: "vp-link-card-desc" });
       await renderInnerMarkdown(descHost, bodyMd, ctx);
-      // Unwrap a single <p> wrapper that MarkdownRenderer adds for short text.
-      const onlyP = descHost.children.length === 1 && descHost.firstElementChild?.tagName === "P"
-        ? (descHost.firstElementChild as HTMLElement)
-        : null;
+      const onlyP =
+        descHost.children.length === 1 && descHost.firstElementChild?.tagName === "P"
+          ? (descHost.firstElementChild as HTMLElement)
+          : null;
       if (onlyP) {
         while (onlyP.firstChild) descHost.appendChild(onlyP.firstChild);
         onlyP.remove();
@@ -1842,6 +2036,243 @@ async function renderLinkCardBlock(
 
   const arrow = wrapper.createSpan({ cls: "vp-link-card-arrow" });
   appendSvgMarkup(arrow, LINK_CARD_ARROW_SVG);
+}
+
+async function renderTableBlock(
+  container: HTMLElement,
+  rawContent: string,
+  attrs: TableContainerAttrs,
+  ctx: BlockRenderContext
+): Promise<void> {
+  const align = attrs.align ?? "left";
+  const copyMode = normalizeTableCopy(attrs.copy);
+  const outer = container.createDiv({
+    cls: `vp-table ${align}${attrs.fullWidth ? " full" : ""}`
+  });
+  const tableContainer = outer.createDiv({ cls: "table-container" });
+  const tableContent = tableContainer.createDiv({ cls: "table-content" });
+
+  let tableInner: HTMLElement | null = null;
+  if (copyMode) {
+    const toolbar = tableContent.createDiv({ cls: "table-toolbar" });
+    const mdSource = rawContent.replace(/^\n+|\n+$/g, "");
+
+    const bindCopy = (btn: HTMLButtonElement, type: "html" | "md"): void => {
+      const icon = btn.createSpan({ cls: "vpi-table-copy" });
+      btn.createSpan({
+        text: type === "html" ? "复制 HTML" : "复制 Markdown"
+      });
+      btn.title =
+        type === "html"
+          ? "复制表格为 HTML，可粘贴到网页/富文本"
+          : "复制表格为 Markdown 源码";
+      btn.addEventListener("click", async () => {
+        const tableEl = tableInner?.querySelector("table");
+        const text =
+          type === "md" ? mdSource : (tableEl?.outerHTML ?? tableEl?.innerHTML ?? "");
+        try {
+          await navigator.clipboard.writeText(text);
+          icon.className = "vpi-table-copied";
+          window.setTimeout(() => {
+            icon.className = "vpi-table-copy";
+          }, 1500);
+        } catch {
+          /* clipboard may be denied */
+        }
+      });
+    };
+
+    if (copyMode === "all" || copyMode === "html") {
+      const btn = toolbar.createEl("button", {
+        attr: { type: "button", "aria-label": "复制表格为 HTML" }
+      });
+      bindCopy(btn, "html");
+    }
+    if (copyMode === "all" || copyMode === "md") {
+      const btn = toolbar.createEl("button", {
+        attr: { type: "button", "aria-label": "复制表格为 Markdown" }
+      });
+      bindCopy(btn, "md");
+    }
+  }
+
+  tableInner = tableContent.createDiv({
+    cls: `table-inner${attrs.maxContent ? " max-content" : ""}`
+  });
+  await renderInnerMarkdown(tableInner, rawContent.replace(/^\n+|\n+$/g, ""), ctx);
+
+  const table = tableInner.querySelector("table");
+  if (table instanceof HTMLTableElement) {
+    applyTableHighlights(table, attrs);
+  }
+
+  if (attrs.title) {
+    tableContainer.createEl("p", { cls: "table-title", text: attrs.title });
+  }
+}
+
+async function renderNpmToBlock(
+  container: HTMLElement,
+  rawContent: string,
+  attrs: NpmToContainerAttrs,
+  ctx: BlockRenderContext
+): Promise<void> {
+  const tabs = (attrs.tabs?.length
+    ? attrs.tabs
+    : ["npm", "pnpm", "yarn"]) as NpmToPackageManager[];
+  const md = npmToCodeTabsMarkdown(rawContent, tabs);
+  if (!md) {
+    container.createEl("p", {
+      cls: "plume-render-error",
+      text: "npm-to: body must contain a single npm/npx code fence."
+    });
+    return;
+  }
+  await renderInnerMarkdown(container, md, ctx);
+}
+
+async function renderQrcodeBlock(
+  container: HTMLElement,
+  rawContent: string,
+  attrs: QrcodeContainerAttrs,
+  ctx: BlockRenderContext
+): Promise<void> {
+  const text = (attrs.text ?? rawContent).replace(/^\n+|\n+$/g, "").trim();
+  if (!text) {
+    return;
+  }
+
+  const mode = attrs.mode ?? "img";
+  const align = attrs.align ?? "left";
+  const classes = ["vp-qrcode", align];
+  if (mode === "card") classes.push("card");
+  if (attrs.reverse) classes.push("reverse");
+
+  const wrapper = container.createDiv({ cls: classes.join(" ") });
+  const content = wrapper.createDiv({ cls: "qrcode-content" });
+
+  const displaySize = attrs.width && attrs.width > 0 ? Math.min(attrs.width, 300) : undefined;
+  if (displaySize) {
+    wrapper.style.setProperty("--vp-qrcode-size", `${displaySize}px`);
+  }
+
+  // Resolve vault-relative logo to resource URL
+  const renderAttrs: QrcodeContainerAttrs = { ...attrs };
+  if (attrs.logo && !isHttpLike(attrs.logo) && !attrs.logo.startsWith("data:")) {
+    const file = ctx.app.metadataCache.getFirstLinkpathDest(attrs.logo, ctx.sourcePath);
+    if (file) {
+      renderAttrs.logo = ctx.app.vault.getResourcePath(file);
+    }
+  }
+
+  const img = content.createEl("img", { cls: "qrcode-img" });
+  img.alt = text;
+  img.title = text;
+  img.decoding = "async";
+
+  try {
+    img.src = await generateQrDataUrl(text, renderAttrs);
+  } catch (err) {
+    wrapper.remove();
+    container.createEl("p", {
+      cls: "plume-render-error",
+      text: `qrcode: failed to generate (${err instanceof Error ? err.message : String(err)})`
+    });
+    return;
+  }
+
+  if (attrs.title && mode !== "card") {
+    content.createDiv({ cls: "qrcode-label", text: attrs.title });
+  }
+
+  if (mode === "card") {
+    const info = wrapper.createDiv({ cls: "qrcode-info" });
+    if (attrs.title) {
+      info.createEl("p", { cls: "qrcode-title", text: attrs.title });
+    }
+    const body = info.createEl("p");
+    if (isHttpLike(text)) {
+      body.createEl("a", {
+        href: text,
+        text,
+        attr: { rel: "noopener noreferrer", target: "_blank" }
+      });
+    } else {
+      body.innerHTML = text
+        .split("\n")
+        .map((line) =>
+          line
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+        )
+        .join("<br>");
+    }
+  }
+}
+
+function resolvePdfUrl(src: string, ctx: BlockRenderContext): string {
+  const raw = src.trim();
+  if (!raw) return "";
+  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|data:|blob:)/i.test(raw)) {
+    return raw.startsWith("//") ? `https:${raw}` : raw;
+  }
+  const file = ctx.app.metadataCache.getFirstLinkpathDest(raw, ctx.sourcePath);
+  if (file) {
+    return ctx.app.vault.getResourcePath(file);
+  }
+  return raw;
+}
+
+function renderPdfEmbed(
+  container: HTMLElement,
+  attrs: PdfEmbedAttrs,
+  ctx: BlockRenderContext
+): void {
+  const resolved = resolvePdfUrl(attrs.src, ctx);
+  if (!resolved) return;
+  const wrap = container.createDiv({ cls: "vp-pdf-viewer" });
+  createPdfIframe(wrap, buildPdfSrc(resolved, attrs), attrs.title || "PDF", {
+    width: attrs.width,
+    height: attrs.height,
+    ratio: attrs.ratio
+  });
+}
+
+function renderBilibiliEmbed(container: HTMLElement, attrs: BilibiliEmbedAttrs): void {
+  if (!attrs.bvid && !attrs.aid) {
+    container.createEl("p", {
+      cls: "plume-render-error",
+      text: "bilibili: need BV id or aid"
+    });
+    return;
+  }
+  const wrap = container.createDiv({ cls: "vp-video-embed bilibili" });
+  createVideoIframe(
+    wrap,
+    buildBilibiliSrc(attrs),
+    attrs.title || "Bilibili",
+    "bilibili",
+    { width: attrs.width, height: attrs.height, ratio: attrs.ratio }
+  );
+}
+
+function renderYoutubeEmbed(container: HTMLElement, attrs: YoutubeEmbedAttrs): void {
+  if (!attrs.id) {
+    container.createEl("p", {
+      cls: "plume-render-error",
+      text: "youtube: missing video id"
+    });
+    return;
+  }
+  const wrap = container.createDiv({ cls: "vp-video-embed youtube" });
+  createVideoIframe(
+    wrap,
+    buildYoutubeSrc(attrs),
+    attrs.title || "YouTube",
+    "youtube",
+    { width: attrs.width, height: attrs.height, ratio: attrs.ratio }
+  );
 }
 
 /* ===== ImageCard ===== */
@@ -1952,28 +2383,42 @@ async function renderFieldBlock(
   attrs: FieldContainerAttrs,
   ctx: BlockRenderContext
 ): Promise<void> {
+  const info = attrs.name ?? "";
+  const parsed = parseFieldContent(rawContent, info);
+  const merged: FieldContainerAttrs = {
+    ...attrs,
+    ...parsed,
+    name: parsed.name || attrs.name || "",
+    type: parsed.type ?? attrs.type,
+    default: parsed.default ?? attrs.default,
+    required: parsed.required || attrs.required,
+    optional: parsed.optional || attrs.optional,
+    deprecated: parsed.deprecated || attrs.deprecated,
+    description: parsed.description
+  };
+
   const cls = ["vp-field"];
-  if (attrs.required) cls.push("required");
-  if (attrs.optional) cls.push("optional");
-  if (attrs.deprecated) cls.push("deprecated");
+  if (merged.required) cls.push("required");
+  if (merged.optional) cls.push("optional");
+  if (merged.deprecated) cls.push("deprecated");
   const wrapper = container.createDiv({ cls: cls.join(" ") });
 
   const meta = wrapper.createEl("p", { cls: "field-meta" });
-  meta.createSpan({ cls: "name", text: attrs.name });
-  if (attrs.required) meta.createSpan({ cls: "required", text: "Required" });
-  else if (attrs.optional) meta.createSpan({ cls: "optional", text: "Optional" });
-  if (attrs.deprecated) meta.createSpan({ cls: "deprecated", text: "Deprecated" });
-  if (attrs.type) {
+  meta.createSpan({ cls: "name", text: merged.name || ELLIPSIS });
+  if (merged.required) meta.createSpan({ cls: "required", text: "Required" });
+  else if (merged.optional) meta.createSpan({ cls: "optional", text: "Optional" });
+  if (merged.deprecated) meta.createSpan({ cls: "deprecated", text: "Deprecated" });
+  if (merged.type) {
     const typeSpan = meta.createSpan({ cls: "type" });
-    typeSpan.createEl("code", { text: attrs.type });
+    typeSpan.createEl("code", { text: merged.type });
   }
 
-  if (attrs.default !== undefined) {
+  if (merged.default !== undefined) {
     const def = wrapper.createEl("p", { cls: "default-value" });
-    def.createEl("code", { text: attrs.default });
+    def.createEl("code", { text: merged.default });
   }
 
-  const bodyMd = rawContent.replace(/^\n+|\n+$/g, "");
+  const bodyMd = (merged.description ?? "").replace(/^\n+|\n+$/g, "");
   if (bodyMd) {
     const desc = wrapper.createDiv({ cls: "description" });
     await renderInnerMarkdown(desc, bodyMd, ctx);
@@ -2137,6 +2582,9 @@ async function renderAlignBlock(
     case "right":
       wrapper.classList.add("align-right");
       break;
+    case "justify":
+      wrapper.classList.add("align-justify");
+      break;
     case "left":
     default:
       wrapper.classList.add("align-left");
@@ -2186,8 +2634,12 @@ async function renderWindowBlock(
     const center = header.createDiv({ cls: "window-center" });
     const titleEl = center.createEl("h4", { cls: "window-title ignore-header" });
     titleEl.createEl("span", { text: attrs.title });
+    titleEl.createEl("i", { cls: "vpi-window-reload" });
   }
-  header.createDiv({ cls: "window-right" });
+  const right = header.createDiv({ cls: "window-right" });
+  right.createEl("i", { cls: "vpi-window-share" });
+  right.createEl("i", { cls: "vpi-window-add" });
+  right.createEl("i", { cls: "vpi-window-copy" });
 
   const section = article.createEl("section", { cls: "window-content" });
   const gap = normalizeWindowSize(attrs.gap) ?? ((onlyImg || attrs.noPadding) ? "0" : "20px");
@@ -2491,46 +2943,69 @@ function applyInlineIcon(host: HTMLElement, icon: string, className: string): vo
     || /\.(png|jpe?g|gif|svg|webp|avif)$/i.test(trimmed);
   if (isImage) {
     const img = document.createElement("img");
-    img.className = className;
+    img.className = className.includes("vp-icon") ? className : `${className} vp-icon-img`;
     img.src = trimmed;
     img.alt = "";
     img.loading = "lazy";
     host.appendChild(img);
     return;
   }
+
+  const span = document.createElement("span");
+  const classes = new Set(className.split(/\s+/).filter(Boolean));
+  classes.add("vp-icon");
+  span.className = Array.from(classes).join(" ");
+  span.setAttribute("aria-hidden", "true");
+  host.appendChild(span);
+
+  // VuePress / Iconify: `collection:name` (incl. `twemoji:…`)
   if (trimmed.includes(":")) {
-    const span = document.createElement("span");
-    span.className = className;
+    span.setAttribute("data-provider", "iconify");
     prepareIconifyIconElement(span, trimmed);
-    host.appendChild(span);
     void processIconifyIcons(span);
     return;
   }
-  const span = document.createElement("span");
-  span.className = className;
-  span.setAttribute("aria-hidden", "true");
-  host.appendChild(span);
-  paintObsidianIcon(span, trimmed);
+
+  // Bare name (e.g. smile / sparkles): try Obsidian Lucide, then Iconify lucide:name
+  // (matches VuePress card docs that accept short Lucide ids).
+  void paintBareIcon(span, trimmed);
 }
 
-/** Obsidian `setIcon` only renders when the target node is connected to the document. */
-function paintObsidianIcon(span: HTMLElement, iconId: string): void {
-  const apply = (): void => {
+/** Obsidian setIcon, with Iconify lucide fallback when the id is missing or not yet connected. */
+async function paintBareIcon(span: HTMLElement, iconId: string): Promise<void> {
+  const tryObsidian = (): boolean => {
     if (!span.isConnected) {
-      return;
+      return false;
     }
     span.empty();
     try {
       setIcon(span, iconId as IconName);
     } catch {
-      /* Unknown icon id: leave empty (do not substitute a generic fallback). */
+      return false;
     }
+    return !!span.querySelector("svg");
   };
-  if (span.isConnected) {
-    apply();
-  } else {
-    window.requestAnimationFrame(apply);
+
+  if (tryObsidian()) {
+    return;
   }
+
+  // Wait briefly for the card host to attach (render may build into a staging node).
+  for (let i = 0; i < 20; i += 1) {
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    if (tryObsidian()) {
+      return;
+    }
+    if (span.isConnected) {
+      break;
+    }
+  }
+
+  // Fallback: Iconify lucide collection (VuePress-compatible short names).
+  span.empty();
+  span.setAttribute("data-provider", "iconify");
+  prepareIconifyIconElement(span, `lucide:${iconId}`);
+  await processIconifyIcons(span);
 }
 
 // ===========================================================================
@@ -2545,7 +3020,10 @@ export async function processBadges(
   rootElement: HTMLElement,
   markdownContext?: PlumeMarkdownContext
 ): Promise<void> {
-  const badgeElements = rootElement.querySelectorAll("badge");
+  // Convert remaining raw <badge> nodes first (always), then optionally
+  // re-render plain sections whose markdown still contains <Badge> tags that
+  // Obsidian stripped before the DOM post-processor.
+  const badgeElements = rootElement.querySelectorAll("badge, Badge");
   badgeElements.forEach((el) => {
     if (!(el instanceof HTMLElement) || el.hasAttribute(BADGE_PROCESSED_ATTR)) return;
     const span = buildBadgeSpan({
@@ -2591,6 +3069,37 @@ export async function processBadges(
 
   rootElement.dataset.plumeBadgeRerender = "1";
   await renderPlumeMarkdown(rootElement, transformed, markdownContext);
+}
+
+/** Map Obsidian callouts from GitHub alert syntax to Plume prompt classes. */
+const GITHUB_ALERT_TYPES = new Set([
+  "note",
+  "tip",
+  "important",
+  "warning",
+  "caution",
+  "danger"
+]);
+
+export function processGithubAlerts(rootElement: HTMLElement): void {
+  const callouts = rootElement.querySelectorAll<HTMLElement>(".callout[data-callout]");
+  callouts.forEach((callout) => {
+    if (callout.classList.contains("vp-github-alert")) {
+      return;
+    }
+    const raw = (callout.getAttribute("data-callout") ?? "").toLowerCase();
+    if (!GITHUB_ALERT_TYPES.has(raw)) {
+      return;
+    }
+    const type = raw === "danger" ? "danger" : raw;
+    callout.classList.add(
+      "vp-custom-container",
+      "obsidian-vuepress-prompt-container",
+      "vp-github-alert",
+      `vp-prompt--${type}`,
+      type
+    );
+  });
 }
 
 export function processPlots(rootElement: HTMLElement): void {

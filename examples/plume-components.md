@@ -5,6 +5,8 @@ description: 对照上游 Plume 示例整理的容器语法验收稿，可在阅
 
 # Obsidian Plume 组件示例
 
+> **中文** | [English](./plume-components.en.md)
+
 在 Obsidian **阅读模式**打开本页，并启用 **Obsidian Plume** 插件。内容与仓库根目录 [`示例.md`](../../示例.md) 对齐，并按 Obsidian 环境做了路径与图标说明。
 
 > **源码在哪？** 本文件即 Markdown 原文。在线预览站每节上方有 **Markdown 源码** 面板；Obsidian 中请用 **编辑模式** 查看 `:::` 围栏块。
@@ -27,6 +29,7 @@ description: 对照上游 Plume 示例整理的容器语法验收稿，可在阅
 - [代码选项卡 code-tabs](#8-代码选项卡--code-tabs)
 - [时间线 timeline](#9-时间线--timeline)
 - [弹性布局 flex](#10-弹性布局--flex)
+- [对齐 align](#10b-对齐--align)
 - [折叠 collapse](#11-折叠--collapse)
 - [对话 chat](#12-对话--chat)
 - [代码块标题 title](#13-代码块标题-title)
@@ -37,6 +40,11 @@ description: 对照上游 Plume 示例整理的容器语法验收稿，可在阅
 - [瀑布流 card-masonry](#18-瀑布流--card-masonry)
 - [仓库卡片 repo-card](#19-仓库卡片--repo-card)
 - [窗口 window](#20-窗口--window)
+- [表格 table](#21-表格--table)
+- [npm-to](#22-npm-to)
+- [二维码 qrcode](#23-二维码--qrcode)
+- [PDF / 视频嵌入](#24-pdf--bilibili--youtube)
+- [外链 favicon](#25-外链-favicon)
 
 ---
 
@@ -65,6 +73,14 @@ description: 对照上游 Plume 示例整理的容器语法验收稿，可在阅
 这是一个危险警告框
 :::
 
+::: danger
+`danger` 与 `caution` 同族（对齐 VuePress Plume）
+:::
+
+::: important
+这是重要信息
+:::
+
 ::: details
 这是一个详情折叠框
 :::
@@ -80,6 +96,27 @@ description: 对照上游 Plume 示例整理的容器语法验收稿，可在阅
 console.log('Hello, VitePress!')
 ```
 :::
+
+::: details 默认展开 {open}
+使用 `{open}` 时默认展开（对齐 VuePress）。
+:::
+
+### GitHub Alerts
+
+> [!NOTE]
+> 与 VuePress 相同的 GitHub Alert 语法；阅读视图中会套用 Plume 提示框配色。
+
+> [!TIP]
+> 有用的建议。
+
+> [!IMPORTANT]
+> 需要用户知晓的关键信息。
+
+> [!WARNING]
+> 需要立即注意的内容。
+
+> [!CAUTION]
+> 风险或负面后果提示。
 
 ---
 
@@ -199,24 +236,43 @@ createApp(App).mount('#app')
 <a id="6-字段-field--field-group"></a>
 ## 6. 字段 `field` / `field-group`
 
+对齐 VuePress：位置名 + `@tag` 语法（推荐）；仍兼容旧的属性写法。
+
 :::: field-group
-::: field name="theme" type="ThemeConfig" required default="{ base: '/' }"
+
+::: field theme
+@type ThemeConfig
+@default { base: '/' }
+@required
+
 主题配置
 :::
 
-::: field name="enabled" type="boolean" optional default="true"
+::: field enabled
+@type boolean
+@default true
+@optional
+
 是否启用
 :::
 
-::: field name="callback" type="(...args: any[]) => void" optional default="() => {}"
-`badge:tip:v1.0.0 新增`
+::: field callback
+@type (...args: any[]) => void
+@default () => {}
+@optional
+
+v1.0.0 新增
 回调函数
 :::
 
-::: field name="other" type="string" deprecated
-`badge:danger:v0.9.0 弃用`
+::: field other
+@type string
+@deprecated
+
+v0.9.0 弃用
 已弃用属性
 :::
+
 ::::
 
 ---
@@ -401,11 +457,32 @@ export default config
 
 ---
 
+<a id="10b-对齐--align"></a>
+## 10b. 对齐 `::: left` / `center` / `right` / `justify`
+
+::: left
+左对齐文本
+:::
+
+::: center
+居中文本
+:::
+
+::: right
+右对齐文本
+:::
+
+::: justify
+两端对齐文本。较长内容时会按两端对齐方式排布，与 VuePress Plume 的 `::: justify` 一致。
+:::
+
+---
+
 <a id="11-折叠--collapse"></a>
 ## 11. 折叠 `::: collapse`
 
 ::: collapse expand
-- 标题 1
+- :+ 标题 1
 
   正文内容
 
@@ -418,7 +495,7 @@ export default config
   正文内容
 :::
 
-> `:-` 前缀表示默认展开；`accordion` 属性可改为手风琴模式。
+> `:+` 前缀表示默认展开，`:-` 表示默认折叠；`accordion` 属性可改为手风琴模式。
 
 ---
 
@@ -461,22 +538,18 @@ const answer = 42
 <a id="14-行内徽章-badge"></a>
 ## 14. 行内徽章 badge
 
-`badge:tip:已完成`
+对齐 VuePress，使用 HTML `<Badge>`：
+- VuePress - <Badge type="info" text="v2" />
+- VuePress - <Badge type="tip" text="v2" />
+- VuePress - <Badge type="warning" text="v2" />
+- VuePress - <Badge type="danger" text="v2" />
+- VuePress - <Badge text="v2" color="#8e5cd9" bg-color="rgba(159, 122, 234, 0.16)" />
 
-`badge:info:测试中`
 
-`badge:warning:开发中`
-
-`badge:danger:已废弃`
-
-（语法：反引号包裹 `` `badge:类型:文本` ``，类型与文本也可用 `|` 分隔。）
-
----
-
-<a id="15-卡片--card"></a>
+ <a id="15-卡片--card"></a>
 ## 15. 卡片 `::: card` / `card-grid`
 
-> **`icon`（Obsidian）**：使用内置 **Lucide 图标名**（如 `smile`、`sparkles`、`external-link`），或图片 URL。不支持 `twemoji:`；已打包的 Iconify 可用 `logos:github-icon` 等。
+> **`icon`**：Lucide 名（如 `smile`）、图片 URL，或 Iconify `collection:name`（含 `twemoji:astonished-face`；在线 Iconify / 离线包）。
 
 ### 单个卡片
 
@@ -662,10 +735,93 @@ fn main() {
 ## 20. 窗口 `::: window`
 
 ::: window title="终端" height="200"
-```bash title="build.sh"
+
+```bash title="build1.sh"
 npm run build
 ```
 :::
+
+---
+
+<a id="21-表格--table"></a>
+## 21. 表格 `::: table`
+
+右上角为复制按钮（复制 HTML / 复制 Markdown）。不需要可写 `copy="false"`。
+
+::: table title="基础表" align="center" copy="all"
+
+| 名称 | 版本 | 说明 |
+| ---- | ---- | ---- |
+| Theme Plume | 1.1.0 | Obsidian 插件 |
+| VuePress Plume | — | 上游主题 |
+
+:::
+
+::: table title="高亮" max-content hl-rows="tip:1" hl-cols="warning:2"
+
+| A | B | C |
+| - | - | - |
+| 1 | 2 | 3 |
+| 4 | 5 | 6 |
+
+:::
+
+---
+
+<a id="22-npm-to"></a>
+## 22. `::: npm-to`
+
+::: npm-to
+```sh
+npm install -D vuepress vuepress-theme-plume
+```
+:::
+
+::: npm-to tabs="npm,pnpm,yarn,bun"
+```sh
+npx vp-update
+```
+:::
+
+---
+
+<a id="23-二维码--qrcode"></a>
+## 23. 二维码 `@[qrcode]` / `::: qrcode`
+
+@[qrcode align="center" title="Obsidian"](https://obsidian.md)
+
+@[qrcode card title="Cursor"](https://cursor.com/cn)
+
+::: qrcode card title="短文本"
+Theme Plume
+:::
+
+---
+
+<a id="24-pdf--bilibili--youtube"></a>
+## 24. PDF / Bilibili / YouTube
+
+@[pdf height="360px"](https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf)
+
+@[bilibili](BV1EZ42187Hg)
+
+@[youtube ratio="16:9"](dQw4w9WgXcQ)
+
+---
+
+<a id="25-外链-favicon"></a>
+## 25. 外链 favicon
+
+在笔记 frontmatter 写：
+
+```yaml
+---
+link-icons: true
+link-icon-size: 16
+---
+```
+
+开启后，本页 http(s) 外链前会显示网站图标（需网络）。示例见库内 `Theme-Plume-更新验收.md`。
 
 ---
 

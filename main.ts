@@ -17,8 +17,9 @@ import {
   parseAllBlocks,
   parseFileTreeRawContent
 } from "./src/parser";
-import { renderFileTreeInto, processBadges, processPlots, type BlockRenderContext } from "./src/render";
+import { renderFileTreeInto, processBadges, processGithubAlerts, processPlots, type BlockRenderContext } from "./src/render";
 import { processIconifyIcons, setIconifyRequestUrl } from "./src/render/iconify-online";
+import { processLinkFavicons } from "./src/render/link-favicons";
 import { PreviewPipeline } from "./src/pipeline/preview-pipeline";
 import { PreviewDocumentSync } from "./src/pipeline/preview-sync";
 import {
@@ -132,7 +133,12 @@ export default class ObsidianPlumePlugin extends Plugin {
         postProcessorCtx: ctx
       });
       await processIconifyIcons(rootElement);
+      processGithubAlerts(rootElement);
       processPlots(rootElement);
+      processLinkFavicons(rootElement, {
+        app: this.app,
+        sourcePath: ctx.sourcePath
+      });
     });
 
     const fileTreeBlockProcessor = (source: string, element: HTMLElement): void => {
@@ -158,6 +164,7 @@ export default class ObsidianPlumePlugin extends Plugin {
     this.registerMarkdownCodeBlockProcessor("file-tree", fileTreeBlockProcessor);
     this.registerMarkdownCodeBlockProcessor("filetree", fileTreeBlockProcessor);
     this.registerMarkdownCodeBlockProcessor("file_tree", fileTreeBlockProcessor);
+    this.registerMarkdownCodeBlockProcessor("tree", fileTreeBlockProcessor);
 
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
@@ -214,6 +221,8 @@ export default class ObsidianPlumePlugin extends Plugin {
         }
         void this.app.vault.cachedRead(file).then((text) => {
           this.previewSync.setLiveText(file.path, text);
+          // Seed so the first clean mode toggle does not treat the file as "changed".
+          this.previewSync.markPreviewSynced(file.path, text);
           this.parseCacheByPath.delete(file.path);
           this.pipeline.codeFenceTitles.seedBaseline(file, text);
         });
@@ -251,23 +260,38 @@ export default class ObsidianPlumePlugin extends Plugin {
   }
 
   /**
-   * Soft refresh: invalidate Plume section caches and re-run leading post-processors only.
+   * Soft refresh: invalidate Plume section caches and re-run leading post-processors.
    * Does not call previewMode.set/rerender — preserves scroll and avoids flicker.
+   * Also refreshes Live Preview leading sections (mode "source") so deep nested
+   * blocks update while editing without waiting for a full CM rewrite.
+   * Only marks preview synced when a reading-mode view was actually touched.
    */
   private flushPlumeBlocks(sourcePath: string): void {
     this.parseCacheByPath.delete(sourcePath);
     this.pipeline.invalidateBlocksForFile(sourcePath);
+    // Refresh once for the file — covers reading + LP registered leading sections.
+    this.pipeline.refreshLeadingSectionsForFile(sourcePath);
 
+    let refreshedReading = false;
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       const view = leaf.view;
       if (!(view instanceof MarkdownView) || view.file?.path !== sourcePath) {
         continue;
       }
-      if (view.getMode() === "source") {
+      if (view.getMode() !== "preview") {
         continue;
       }
       PreviewDocumentSync.invalidatePreviewDom(view);
-      this.pipeline.refreshLeadingSectionsForFile(sourcePath);
+      refreshedReading = true;
+    }
+
+    // If we only edited in source/LP, keep dirty + lastSynced so entering
+    // reading mode still runs syncPreviewFromEditor (title-only changes included).
+    if (refreshedReading) {
+      const live = this.previewSync.getLiveText(sourcePath, "");
+      if (live) {
+        this.previewSync.markPreviewSynced(sourcePath, live);
+      }
     }
   }
 
@@ -301,9 +325,49 @@ export default class ObsidianPlumePlugin extends Plugin {
     PreviewDocumentSync.invalidatePreviewDom(view);
     view.previewMode.set(text, true);
     view.previewMode.rerender(true);
-    window.requestAnimationFrame(() => {
-      this.previewSync.applyScroll(view, path, scrollY);
-    });
+    this.previewSync.markPreviewSynced(path, text);
+    if (scrollY !== null && scrollY > 0) {
+      window.requestAnimationFrame(() => {
+        this.previewSync.applyScroll(view, path, scrollY);
+      });
+    }
+  }
+
+  /**
+   * Push editor buffer into reading preview after LP/source edits.
+   * Single `set` only — no rerender + no leading-section wipe (those caused double flash).
+   */
+  private syncPreviewFromEditor(view: MarkdownView, sourcePath: string, text: string): void {
+    // Capture before set(); only restore when we have a real position (never force 0).
+    const scrollY =
+      this.previewSync.captureScroll(view.previewMode)
+      ?? this.previewSync.getRememberedScroll(sourcePath);
+    this.parseCacheByPath.delete(sourcePath);
+    this.pipeline.invalidateBlocksForFile(sourcePath);
+
+    // One update path: Obsidian rebuilds sections/post-processors from this text.
+    view.previewMode.set(text, true);
+    this.previewSync.markPreviewSynced(sourcePath, text);
+
+    if (scrollY !== null && scrollY > 0) {
+      window.requestAnimationFrame(() => {
+        this.previewSync.applyScroll(view, sourcePath, scrollY);
+      });
+    }
+  }
+
+  private findPreviewViewForPath(path: string): MarkdownView | undefined {
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (
+        view instanceof MarkdownView
+        && view.file?.path === path
+        && view.getMode() === "preview"
+      ) {
+        return view;
+      }
+    }
+    return undefined;
   }
 
   private rememberPreviewScrollFromEvent(event: Event): void {
@@ -314,15 +378,31 @@ export default class ObsidianPlumePlugin extends Plugin {
 
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       const view = leaf.view;
-      if (!(view instanceof MarkdownView) || view.getMode() !== "preview" || !view.file) {
+      if (!(view instanceof MarkdownView) || !view.file) {
         continue;
       }
-      const container = view.previewMode.containerEl;
-      if (target === container || container.contains(target)) {
-        try {
-          this.previewSync.rememberScroll(view.file.path, view.previewMode.getScroll());
-        } catch {
-          /* preview detached */
+      const path = view.file.path;
+
+      if (view.getMode() === "preview") {
+        const container = view.previewMode.containerEl;
+        if (target === container || container.contains(target)) {
+          const scroll = this.previewSync.captureScroll(view.previewMode);
+          if (scroll !== null && scroll > 0) {
+            this.previewSync.rememberScroll(path, scroll);
+          }
+          return;
+        }
+        continue;
+      }
+
+      const scroller = view.contentEl.querySelector(".cm-scroller");
+      if (
+        scroller instanceof HTMLElement
+        && (target === scroller || scroller.contains(target))
+      ) {
+        const scroll = this.previewSync.captureScroll(view.currentMode);
+        if (scroll !== null && scroll > 0) {
+          this.previewSync.rememberScroll(path, scroll);
         }
         return;
       }
@@ -364,7 +444,7 @@ export default class ObsidianPlumePlugin extends Plugin {
     }
   }
 
-  /** Detect source↔preview; on enter preview flush Plume blocks only (no full rerender). */
+  /** Detect source↔preview. Avoid any preview rebuild on clean toggles (no flash). */
   private syncMarkdownViewMode(view: MarkdownView): void {
     const file = view.file;
     if (!file) {
@@ -374,53 +454,57 @@ export default class ObsidianPlumePlugin extends Plugin {
     const path = file.path;
     const mode = view.getMode();
     const prev = this.markdownModeByPath.get(path);
-    this.previewSync.setLiveText(path, view.editor.getValue());
+    const text = view.editor.getValue();
+    this.previewSync.setLiveText(path, text);
 
     const enteringPreview = mode === "preview" && prev !== "preview";
-    const needsFlush = mode === "preview" && (enteringPreview || this.previewSync.isDirty(path));
+    const contentChanged = this.previewSync.hasPreviewSourceChanged(path, text);
+    const isDirty = this.previewSync.isDirty(path);
+    const titlesDirty = this.pipeline.codeFenceTitles.hasPendingDirty(path);
 
-    if (prev === mode && !needsFlush) {
-      return;
-    }
-
-    if (prev === "preview" && mode === "source") {
-      try {
-        this.previewSync.rememberScroll(path, view.previewMode.getScroll());
-      } catch {
-        /* preview detached */
-      }
-    } else if (mode === "preview") {
-      try {
-        this.previewSync.rememberScroll(path, view.previewMode.getScroll());
-      } catch {
-        /* preview detached */
-      }
-    }
+    // Do not applyScroll on mode toggles — Obsidian syncs reading ↔ source/LP itself.
+    // Forcing applyScroll(0) after a late getScroll() was jumping views to the top.
 
     this.markdownModeByPath.set(path, mode);
 
-    if (needsFlush) {
-      this.bumpContentEpoch(path);
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (enteringPreview) {
-            const freshView = this.app.workspace.getLeavesOfType("markdown")
-              .map((leaf) => leaf.view)
-              .find((candidate): candidate is MarkdownView => {
-                return candidate instanceof MarkdownView
-                  && candidate.file?.path === path
-                  && candidate.getMode() === "preview";
-              });
-            if (freshView) {
-              const scrollY = this.previewSync.resolveScrollRestore(freshView, path);
-              this.fullRerenderPreviewView(freshView, scrollY);
-              return;
-            }
-          }
-          this.flushPlumeBlocks(path);
-        });
-      });
+    if (mode !== "preview") {
+      return;
     }
+
+    // Clean toggle (same text, no pending title patch): keep existing preview DOM.
+    if (enteringPreview && !contentChanged && !isDirty && !titlesDirty) {
+      return;
+    }
+
+    // Already in preview and nothing changed.
+    if (!enteringPreview && !contentChanged && !isDirty && !titlesDirty) {
+      return;
+    }
+
+    this.bumpContentEpoch(path);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const freshView = this.findPreviewViewForPath(path);
+        if (!freshView) {
+          return;
+        }
+
+        if (enteringPreview && (contentChanged || isDirty || titlesDirty)) {
+          // Editor/title changed while in LP/source — push text once into reading preview.
+          this.syncPreviewFromEditor(freshView, path, text);
+          this.pipeline.codeFenceTitles.clearPendingDirty(path);
+          return;
+        }
+
+        if (titlesDirty && !enteringPreview) {
+          this.pipeline.codeFenceTitles.refreshDirtyPreviews();
+          this.pipeline.codeFenceTitles.clearPendingDirty(path);
+        }
+
+        // Staying in reading mode with dirty buffer (e.g. external file modify).
+        this.flushPlumeBlocks(path);
+      });
+    });
   }
 
   /** Retry mode detection when Ctrl+E fires before getMode() becomes preview. */

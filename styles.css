@@ -121,12 +121,14 @@
   padding: 0 4px;
   margin: 0 -4px;
   font-weight: 600;
-  color: var(--text-on-accent);
+  /* Prefer on-accent; fall back to page bg so text stays readable on accent pill */
+  color: var(--text-on-accent, var(--background-primary));
   background-color: var(--interactive-accent);
   border-radius: 4px;
 }
 
-.obsidian-vuepress-file-tree .vp-file-tree-info.active .name,
+/* Do not override focus pill text — active/hover accent color would match the pill bg */
+.obsidian-vuepress-file-tree .vp-file-tree-info.active:not(.focus) .name,
 .obsidian-vuepress-file-tree .vp-file-tree-info:not(.focus).folder .name:hover {
   color: var(--interactive-accent);
 }
@@ -335,6 +337,8 @@
   height: 0 !important;
   min-height: 0 !important;
   max-height: 0 !important;
+  width: 0 !important;
+  max-width: 0 !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
@@ -343,6 +347,8 @@
   line-height: 0 !important;
   font-size: 0 !important;
   border: none !important;
+  flex: 0 0 0 !important;
+  align-self: flex-start !important;
 }
 
 .plume-render-error {
@@ -509,78 +515,103 @@
 }
 
 .obsidian-vuepress-tabs {
-  margin: 1em 0;
+  --vp-tab-text: var(--text-muted);
+  --vp-tab-text-hover: var(--text-normal);
+  --vp-tab-text-active: var(--text-normal);
+  --vp-tab-bar: var(--interactive-accent);
+  --vp-tab-nav-bg: var(--code-background, var(--background-secondary));
+  --vp-tab-divider: var(--background-modifier-border);
+
+  margin: 16px 0;
   overflow: hidden;
-  background-color: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 10px;
+  background-color: transparent;
+  border: 1px solid var(--vp-tab-divider);
+  border-radius: 6px;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-nav {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0;
-  padding: 6px 6px 0;
-  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 0 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  background-color: var(--vp-tab-nav-bg);
+  border-bottom: none;
+  box-shadow: inset 0 -1px var(--vp-tab-divider);
+  scrollbar-width: thin;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-tab {
   position: relative;
-  min-height: 30px;
-  padding: 6px 12px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 0;
+  height: auto;
+  padding: 0 12px;
   margin: 0;
   overflow: hidden;
-  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 48px;
+  color: var(--vp-tab-text);
   cursor: pointer;
   background: transparent;
   border: 0;
-  border-radius: 6px 6px 0 0;
+  border-radius: 0;
   outline: none;
-  transition: color 150ms ease, background-color 150ms ease;
+  transition: color 150ms ease;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-tab::after {
   position: absolute;
-  right: 10px;
-  bottom: 0;
-  left: 10px;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  z-index: 1;
   height: 2px;
   content: "";
   background-color: transparent;
+  border-radius: 2px;
   transition: background-color 150ms ease;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-tab:hover {
-  color: var(--text-normal);
-  background-color: var(--background-modifier-hover);
+  color: var(--vp-tab-text-hover);
+  background-color: transparent;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-tab.active {
-  color: var(--interactive-accent);
-  background-color: var(--background-secondary, #f5f7fa);
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(60,132,247,0.06);
+  color: var(--vp-tab-text-active);
+  background-color: transparent;
+  font-weight: 500;
+  box-shadow: none;
   z-index: 2;
-  position: relative;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-tab.active::after {
-  background-color: var(--interactive-accent);
-  height: 3px;
-  border-radius: 2px 2px 0 0;
-  box-shadow: 0 1px 4px rgba(60,132,247,0.10);
+  background-color: var(--vp-tab-bar);
+  height: 2px;
+  box-shadow: none;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-body {
-  padding: 12px;
+  padding: 16px;
+  background-color: var(--background-primary);
 }
 
 .obsidian-vuepress-tabs .vp-tabs-panel {
-  display: none;
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-panel.active {
-  display: block;
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
 }
 
 .obsidian-vuepress-tabs .vp-tabs-panel > :first-child {
@@ -716,23 +747,79 @@
 }
 
 .obsidian-vuepress-prompt-container {
+  /* Don't stretch when a parent list/flex/section is taller than the tip */
+  display: block !important;
+  align-self: flex-start !important;
+  flex: 0 0 auto !important;
+  width: 100%;
+  max-width: 100%;
+  height: fit-content !important;
+  min-height: 0 !important;
+  max-height: none !important;
   margin: 16px 0;
   padding: 12px 14px;
   background-color: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-left: 4px solid var(--interactive-accent);
   border-radius: 8px;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+/* Obsidian scroll-sync often sets inline min-height on sections — unlock for prompts */
+.markdown-preview-section.plume-has-block:has(> .obsidian-vuepress-prompt-container),
+.markdown-preview-section:has(> .obsidian-vuepress-prompt-container) {
+  height: auto !important;
+  min-height: 0 !important;
 }
 
 .obsidian-vuepress-prompt-container .vp-custom-container-title {
-  margin: 0;
+  display: flex !important;
+  align-items: center;
+  gap: 0.35em;
+  margin: 0 !important;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-icon svg {
+  width: 1em;
+  height: 1em;
 }
 
 .obsidian-vuepress-prompt-container .vp-custom-container-content {
+  display: block !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
   margin-top: 8px;
+  white-space: normal !important;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.obsidian-vuepress-prompt-container .vp-custom-container-content > * {
+  display: block !important;
+  float: none !important;
+  width: auto !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  flex: none !important;
+  white-space: normal !important;
 }
 
 .obsidian-vuepress-prompt-container .vp-custom-container-content > :first-child {
@@ -743,44 +830,54 @@
   margin-bottom: 0;
 }
 
-.obsidian-vuepress-prompt-container.note {
+.obsidian-vuepress-prompt-container.vp-prompt--note {
   border-left-color: var(--vp-prompt-note-border, #64748b);
 }
 
-.obsidian-vuepress-prompt-container.note .vp-custom-container-title {
+.obsidian-vuepress-prompt-container.vp-prompt--note .vp-custom-container-title {
   color: var(--vp-prompt-note-title, #64748b);
 }
 
-.obsidian-vuepress-prompt-container.info {
+.obsidian-vuepress-prompt-container.vp-prompt--info {
   border-left-color: var(--vp-prompt-info-border, #0284c7);
 }
 
-.obsidian-vuepress-prompt-container.info .vp-custom-container-title {
+.obsidian-vuepress-prompt-container.vp-prompt--info .vp-custom-container-title {
   color: var(--vp-prompt-info-title, #0284c7);
 }
 
-.obsidian-vuepress-prompt-container.tip {
+.obsidian-vuepress-prompt-container.vp-prompt--tip {
   border-left-color: var(--vp-prompt-tip-border, #16a34a);
 }
 
-.obsidian-vuepress-prompt-container.tip .vp-custom-container-title {
+.obsidian-vuepress-prompt-container.vp-prompt--tip .vp-custom-container-title {
   color: var(--vp-prompt-tip-title, #16a34a);
 }
 
-.obsidian-vuepress-prompt-container.warning {
+.obsidian-vuepress-prompt-container.vp-prompt--warning {
   border-left-color: var(--vp-prompt-warning-border, #d97706);
 }
 
-.obsidian-vuepress-prompt-container.warning .vp-custom-container-title {
+.obsidian-vuepress-prompt-container.vp-prompt--warning .vp-custom-container-title {
   color: var(--vp-prompt-warning-title, #d97706);
 }
 
-.obsidian-vuepress-prompt-container.caution {
+.obsidian-vuepress-prompt-container.vp-prompt--caution,
+.obsidian-vuepress-prompt-container.vp-prompt--danger {
   border-left-color: var(--vp-prompt-caution-border, #dc2626);
 }
 
-.obsidian-vuepress-prompt-container.caution .vp-custom-container-title {
+.obsidian-vuepress-prompt-container.vp-prompt--caution .vp-custom-container-title,
+.obsidian-vuepress-prompt-container.vp-prompt--danger .vp-custom-container-title {
   color: var(--vp-prompt-caution-title, #dc2626);
+}
+
+.obsidian-vuepress-prompt-container.vp-prompt--important {
+  border-left-color: var(--vp-prompt-important-border, #8e5cd9);
+}
+
+.obsidian-vuepress-prompt-container.vp-prompt--important .vp-custom-container-title {
+  color: var(--vp-prompt-important-title, #8e5cd9);
 }
 
 details.obsidian-vuepress-prompt-container {
@@ -804,7 +901,7 @@ details.obsidian-vuepress-prompt-container > summary::-webkit-details-marker {
 details.obsidian-vuepress-prompt-container > summary::before {
   display: inline-block;
   margin-right: 6px;
-  content: "▸";
+  content: "�?;
   transition: transform 120ms ease;
 }
 
@@ -940,7 +1037,8 @@ details.obsidian-vuepress-prompt-container .vp-custom-container-content {
   line-height: 1.4;
 }
 
-.vp-card-wrapper > .title .vp-card-icon {
+.vp-card-wrapper > .title .vp-card-icon,
+.vp-card-wrapper > .title .vp-icon {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -951,12 +1049,14 @@ details.obsidian-vuepress-prompt-container .vp-custom-container-content {
   color: var(--interactive-accent);
 }
 
-.vp-card-wrapper > .title .vp-card-icon svg {
+.vp-card-wrapper > .title .vp-card-icon svg,
+.vp-card-wrapper > .title .vp-icon svg {
   width: 1.2em;
   height: 1.2em;
 }
 
-.vp-card-wrapper > .title img.vp-card-icon {
+.vp-card-wrapper > .title img.vp-card-icon,
+.vp-card-wrapper > .title img.vp-icon-img {
   object-fit: contain;
 }
 
@@ -1174,6 +1274,18 @@ details.obsidian-vuepress-prompt-container .vp-custom-container-content {
 }
 
 
+/* ===== Auto link favicons (frontmatter: link-icons / link-icon-size) ===== */
+.vp-link-favicon {
+  display: inline-block;
+  width: var(--vp-link-favicon-size, 16px);
+  height: var(--vp-link-favicon-size, 16px);
+  margin-right: 0.35em;
+  vertical-align: -0.15em;
+  object-fit: contain;
+  flex-shrink: 0;
+  border: 0;
+}
+
 /* ===== LinkCard ===== */
 .vp-link-card {
   position: relative;
@@ -1221,7 +1333,7 @@ details.obsidian-vuepress-prompt-container .vp-custom-container-content {
   cursor: pointer;
 }
 
-/* Whole-card click target — invisible overlay above the body content. */
+/* Whole-card click target �?invisible overlay above the body content. */
 .vp-link-card .link::before {
   position: absolute;
   inset: 0;
@@ -1239,8 +1351,16 @@ details.obsidian-vuepress-prompt-container .vp-custom-container-content {
 .vp-link-card .vp-link-card-icon {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: 1.25em;
+  height: 1.25em;
   color: var(--text-accent);
+}
+
+.vp-link-card .vp-link-card-icon svg {
+  width: 1.25em;
+  height: 1.25em;
 }
 
 .vp-link-card .vp-link-card-desc {
@@ -1250,16 +1370,177 @@ details.obsidian-vuepress-prompt-container .vp-custom-container-content {
 }
 
 .vp-link-card .vp-link-card-arrow {
-  display: inline-flex;
+  display: flex;
+  flex-shrink: 0;
   align-items: center;
-  margin-top: 2px;
+  justify-content: center;
   color: var(--text-muted);
   transition: transform 0.2s ease, color 0.2s ease;
 }
 
 .vp-link-card:hover .vp-link-card-arrow {
-  transform: translateX(2px);
   color: var(--interactive-accent);
+  transform: translateX(2px);
+}
+
+/* Masonry / grid: link-cards as cells should fill width without extra outer margin */
+.vp-card-masonry-cell > .vp-link-card,
+.card-masonry-item > .vp-link-card,
+.vp-card-grid > .vp-link-card {
+  width: 100%;
+  margin: 0;
+}
+
+.vp-link-card-desc {
+  max-width: 100%;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.vp-link-card-desc > :first-child {
+  margin-top: 0;
+}
+
+.vp-link-card-desc > :last-child {
+  margin-bottom: 0;
+}
+
+/* ===== VPTable (::: table) ===== */
+.vp-table {
+  display: flex;
+  max-width: 100%;
+  margin: 16px 0;
+}
+
+.vp-table.left {
+  justify-content: flex-start;
+}
+
+.vp-table.center {
+  justify-content: center;
+}
+
+.vp-table.right {
+  justify-content: flex-end;
+}
+
+.vp-table .table-container,
+.vp-table .table-content {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.vp-table .table-content {
+  margin: 0 auto;
+}
+
+.vp-table .table-content .table-inner {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.vp-table .table-title {
+  margin: 8px auto;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.vp-table .table-container table {
+  display: table;
+  margin: 0;
+}
+
+.vp-table .table-toolbar {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+
+.vp-table .table-toolbar button {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.vp-table .table-toolbar button:hover {
+  color: var(--text-normal);
+}
+
+.vpi-table-copy,
+.vpi-table-copied {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
+.vpi-table-copy {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%23000' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M20.829 12.861c.171-.413.171-.938.171-1.986s0-1.573-.171-1.986a2.25 2.25 0 0 0-1.218-1.218c-.413-.171-.938-.171-1.986-.171H11.1c-1.26 0-1.89 0-2.371.245a2.25 2.25 0 0 0-.984.984C7.5 9.209 7.5 9.839 7.5 11.1v6.525c0 1.048 0 1.573.171 1.986c.229.551.667.99 1.218 1.218c.413.171.938.171 1.986.171s1.573 0 1.986-.171m7.968-7.968a2.25 2.25 0 0 1-1.218 1.218c-.413.171-.938.171-1.986.171s-1.573 0-1.986.171a2.25 2.25 0 0 0-1.218 1.218c-.171.413-.171.938-.171 1.986s0 1.573-.171 1.986a2.25 2.25 0 0 1-1.218 1.218m7.968-7.968a11.68 11.68 0 0 1-7.75 7.9l-.218.068M16.5 7.5v-.9c0-1.26 0-1.89-.245-2.371a2.25 2.25 0 0 0-.983-.984C14.79 3 14.16 3 12.9 3H6.6c-1.26 0-1.89 0-2.371.245a2.25 2.25 0 0 0-.984.984C3 4.709 3 5.339 3 6.6v6.3c0 1.26 0 1.89.245 2.371c.216.424.56.768.984.984c.48.245 1.111.245 2.372.245H7.5'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%23000' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M20.829 12.861c.171-.413.171-.938.171-1.986s0-1.573-.171-1.986a2.25 2.25 0 0 0-1.218-1.218c-.413-.171-.938-.171-1.986-.171H11.1c-1.26 0-1.89 0-2.371.245a2.25 2.25 0 0 0-.984.984C7.5 9.209 7.5 9.839 7.5 11.1v6.525c0 1.048 0 1.573.171 1.986c.229.551.667.99 1.218 1.218c.413.171.938.171 1.986.171s1.573 0 1.986-.171m7.968-7.968a2.25 2.25 0 0 1-1.218 1.218c-.413.171-.938.171-1.986.171s-1.573 0-1.986.171a2.25 2.25 0 0 0-1.218 1.218c-.171.413-.171.938-.171 1.986s0 1.573-.171 1.986a2.25 2.25 0 0 1-1.218 1.218m7.968-7.968a11.68 11.68 0 0 1-7.75 7.9l-.218.068M16.5 7.5v-.9c0-1.26 0-1.89-.245-2.371a2.25 2.25 0 0 0-.983-.984C14.79 3 14.16 3 12.9 3H6.6c-1.26 0-1.89 0-2.371.245a2.25 2.25 0 0 0-.984.984C3 4.709 3 5.339 3 6.6v6.3c0 1.26 0 1.89.245 2.371c.216.424.56.768.984.984c.48.245 1.111.245 2.372.245H7.5'/%3E%3C/svg%3E");
+}
+
+.vpi-table-copied {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='m9 20.42l-6.21-6.21l2.83-2.83L9 14.77l9.88-9.89l2.83 2.83z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='m9 20.42l-6.21-6.21l2.83-2.83L9 14.77l9.88-9.89l2.83 2.83z'/%3E%3C/svg%3E");
+}
+
+.vp-table .table-content .max-content table {
+  width: max-content;
+}
+
+.vp-table.full,
+.vp-table.full .table-container,
+.vp-table.full .table-content,
+.vp-table.full .table-content table {
+  min-width: 100%;
+}
+
+.vp-table table th.tip,
+.vp-table table td.tip,
+.vp-table table th.note,
+.vp-table table td.note,
+.vp-table table th.success,
+.vp-table table td.success {
+  color: var(--color-green, #3ba55c);
+  background-color: rgba(var(--color-green-rgb, 59, 165, 92), 0.15);
+}
+
+.vp-table table th.info,
+.vp-table table td.info {
+  color: var(--color-blue, #4f8cf7);
+  background-color: rgba(var(--color-blue-rgb, 79, 140, 247), 0.15);
+}
+
+.vp-table table th.warning,
+.vp-table table td.warning {
+  color: var(--color-yellow, #d4a017);
+  background-color: rgba(var(--color-yellow-rgb, 212, 160, 23), 0.18);
+}
+
+.vp-table table th.danger,
+.vp-table table td.danger,
+.vp-table table th.caution,
+.vp-table table td.caution,
+.vp-table table th.important,
+.vp-table table td.important {
+  color: var(--color-red, #e74c3c);
+  background-color: rgba(var(--color-red-rgb, 231, 76, 60), 0.15);
 }
 
 
@@ -1620,6 +1901,19 @@ h6 .vp-badge {
   text-align: right;
 }
 
+.vp-align.align-justify {
+  text-align: justify;
+}
+
+/* GitHub-style alerts (`> [!NOTE]`) �?Obsidian callouts restyled toward Plume prompts */
+.callout.vp-github-alert.obsidian-vuepress-prompt-container {
+  border-left-width: 4px;
+  border-left-style: solid;
+  border-radius: 0;
+  background-color: transparent;
+  padding: 0.75rem 1rem;
+}
+
 
 /* ===== Window ===== */
 .window-wrapper {
@@ -1676,8 +1970,45 @@ h6 .vp-badge {
 }
 
 .window-wrapper .window-right {
-  width: 60px;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: flex-end;
   padding-right: 8px;
+  color: var(--text-muted);
+}
+
+.window-wrapper .window-title [class*="vpi-window-"] {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.window-wrapper [class^="vpi-"],
+.window-wrapper [class*=" vpi-"] {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  -webkit-mask: var(--icon) no-repeat;
+  mask: var(--icon) no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.vpi-window-share {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M11.293 2.293a1 1 0 0 1 1.414 0l3 3a1 1 0 0 1-1.414 1.414L13 5.414V15a1 1 0 1 1-2 0V5.414L9.707 6.707a1 1 0 0 1-1.414-1.414zM4 11a2 2 0 0 1 2-2h2a1 1 0 0 1 0 2H6v9h12v-9h-2a1 1 0 1 1 0-2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z'/%3E%3C/svg%3E");
+}
+
+.vpi-window-add {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M12 4a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5a1 1 0 0 1 1-1'/%3E%3C/svg%3E");
+}
+
+.vpi-window-copy {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M2 4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-4H4a2 2 0 0 1-2-2zm8 12v4h10V10h-4v4a2 2 0 0 1-2 2zm4-2V4H4v10z'/%3E%3C/svg%3E");
+}
+
+.vpi-window-reload {
+  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='%23000' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'%3E%3Cpath d='M19.933 13.041a8 8 0 1 1-9.925-8.788c3.899-1 7.935 1.007 9.425 4.747'/%3E%3Cpath d='M20 4v5h-5'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 .window-wrapper .window-center {
@@ -1722,11 +2053,14 @@ h6 .vp-badge {
 .window-wrapper .window-content {
   height: var(--window-height, auto);
   min-height: 0;
-  padding: var(--window-gap, 20px);
+  /* VuePress: horizontal padding only — vertical comes from nested block margins */
+  padding: 0 var(--window-gap, 20px);
   overflow: auto;
   font-size: 14px;
   line-height: 22px;
   background-color: var(--background-primary);
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .window-wrapper .window-content > img:only-child,
@@ -2075,7 +2409,7 @@ h6 .vp-badge {
   user-select: none;
 }
 
-/* 遮罩层效果 */
+/* 遮罩层效�?*/
 .vp-plot-content.vp-plot-mask {
   background-color: var(--text-normal);
   color: var(--text-normal);
@@ -2186,7 +2520,7 @@ h6 .vp-badge {
   color: var(--vp-timeline-c-time);
 }
 
-/* ===== VPTimeline — between mode collapses to single column on narrow screens (mirrors VuePress useMediaQuery 639px) ===== */
+/* ===== VPTimeline �?between mode collapses to single column on narrow screens (mirrors VuePress useMediaQuery 639px) ===== */
 @media (max-width: 639px) {
   .obsidian-vuepress-timeline .vp-timeline-item:not(.horizontal).between {
     width: 100%;
@@ -2207,7 +2541,7 @@ h6 .vp-badge {
   }
 }
 
-/* ===== VPCollapse — subtle fade/slide animation on open (GPU compositor only, no layout cost) ===== */
+/* ===== VPCollapse �?subtle fade/slide animation on open (GPU compositor only, no layout cost) ===== */
 @media (prefers-reduced-motion: no-preference) {
   .obsidian-vuepress-collapse .vp-collapse-item[open] > .vp-collapse-content {
     animation: vp-collapse-fade 180ms ease;
@@ -2225,7 +2559,7 @@ h6 .vp-badge {
   }
 }
 
-/* ===== Prompt container — type icon prepended to title ===== */
+/* ===== Prompt container �?type icon prepended to title ===== */
 .obsidian-vuepress-prompt-container .vp-custom-container-icon {
   display: inline-flex;
   align-items: center;
@@ -2246,7 +2580,7 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   margin-right: 4px;
 }
 
-/* ===== Tabs — narrow screen full-bleed layout (mirrors VuePress 419px breakpoint) ===== */
+/* ===== Tabs �?narrow screen full-bleed layout (mirrors VuePress 419px breakpoint) ===== */
 @media (max-width: 419px) {
   .obsidian-vuepress-tabs {
     border-radius: 6px;
@@ -2277,20 +2611,42 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   margin: 16px 0;
 }
 
-.vp-code-block-title > pre {
+.vp-code-block-title > pre,
+.vp-code-block-title > .vp-code-features {
   margin-top: 0 !important;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+}
+
+.vp-code-block-title > .vp-code-features > pre {
+  margin-top: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
 }
 
 .vp-code-block-title-bar {
   position: relative;
   display: flex;
   align-items: center;
+  /* Pull code chrome up under the title bar (VuePress code.css parity) */
+  margin-bottom: -16px;
   padding: 0 12px;
   background-color: var(--code-background, var(--background-secondary));
   border-radius: 6px 6px 0 0;
-  box-shadow: inset 0 -1px var(--background-modifier-border);
+  border-bottom: none;
+  box-shadow: none;
+  z-index: 1;
+}
+
+.vp-code-block-title-bar::before {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: inline-block;
+  width: 100%;
+  height: 1px;
+  content: "";
+  background-color: var(--background-modifier-border);
 }
 
 .vp-code-block-title-text {
@@ -2391,10 +2747,27 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
 /* Code Tabs ---------------------------------------------------------------- */
 
 .obsidian-vuepress-code-tabs {
+  --vp-code-tab-bg: var(--code-background, var(--background-secondary));
+  --vp-code-tab-text-color: var(--text-muted);
+  --vp-code-tab-hover-text-color: var(--text-normal);
+  --vp-code-tab-active-text-color: var(--text-normal);
+  --vp-code-tab-active-bar-color: var(--interactive-accent);
+  --vp-code-tab-divider: var(--background-modifier-border);
+
   margin: 16px 0;
   border-radius: 6px;
-  background-color: var(--code-background, var(--background-secondary));
+  background-color: var(--vp-code-tab-bg);
   overflow: hidden;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+/* Obsidian scroll-sync often inflates section min-height around code-tabs / npm-to */
+.markdown-preview-section.plume-has-block:has(.obsidian-vuepress-code-tabs),
+.markdown-preview-section:has(.obsidian-vuepress-code-tabs) {
+  height: auto !important;
+  min-height: 0 !important;
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tabs-nav {
@@ -2402,9 +2775,12 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   flex-wrap: nowrap;
   overflow-x: auto;
   white-space: nowrap;
-  padding: 0 8px;
-  background-color: transparent;
-  box-shadow: inset 0 -1px var(--background-modifier-border);
+  padding: 0 12px;
+  margin: 0;
+  background-color: var(--vp-code-tab-bg);
+  border-radius: 6px 6px 0 0;
+  box-shadow: inset 0 -1px var(--vp-code-tab-divider);
+  scrollbar-width: thin;
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tab-nav {
@@ -2412,28 +2788,29 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 0 12px;
-  height: 40px;
-  font-size: 13px;
+  height: auto;
+  font-size: 14px;
   font-weight: 500;
-  line-height: 1;
-  color: var(--text-muted);
+  line-height: 48px;
+  color: var(--vp-code-tab-text-color);
   background: transparent;
   border: none;
   border-radius: 0;
   cursor: pointer;
+  transition: color 150ms ease;
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tab-nav:hover {
-  color: var(--text-normal);
+  color: var(--vp-code-tab-hover-text-color);
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tab-nav.active {
-  color: var(--interactive-accent);
-  background-color: var(--background-secondary, #f5f7fa);
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(60,132,247,0.06);
+  color: var(--vp-code-tab-active-text-color);
+  background-color: transparent;
+  font-weight: 500;
+  box-shadow: none;
   z-index: 2;
   position: relative;
 }
@@ -2443,48 +2820,537 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   right: 8px;
   bottom: -1px;
   left: 8px;
-  height: 3px;
+  height: 2px;
   content: "";
-  background-color: var(--interactive-accent);
-  border-radius: 2px 2px 0 0;
-  box-shadow: 0 1px 4px rgba(60,132,247,0.10);
-  background-color: var(--interactive-accent);
+  background-color: var(--vp-code-tab-active-bar-color);
   border-radius: 2px;
+  box-shadow: none;
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tab-icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin: 0;
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tab-icon > svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+}
+
+.obsidian-vuepress-code-tabs .vp-code-tabs-body {
+  height: auto !important;
+  min-height: 0 !important;
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tab {
-  display: none;
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tab.active {
-  display: block;
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
 }
 
-.obsidian-vuepress-code-tabs .vp-code-tab > pre {
+.obsidian-vuepress-code-tabs .vp-code-tab > pre,
+.obsidian-vuepress-code-tabs .vp-code-tab .vp-code-features,
+.obsidian-vuepress-code-tabs .vp-code-tab .vp-code-block-title {
   margin: 0 !important;
   border-radius: 0 !important;
+  max-height: none !important;
 }
 
-/* Strip the title-bar inside code-tabs panels — the tab nav already shows the
- * filename, so the duplicate would be visual noise. */
+/* Tab nav already labels the manager — hide duplicate fence title bars */
 .obsidian-vuepress-code-tabs .vp-code-tab .vp-code-block-title > .vp-code-block-title-bar {
   display: none;
 }
 
-.obsidian-vuepress-code-tabs .vp-code-tab .vp-code-block-title > pre {
+/* ===== QRCode (@[qrcode] / ::: qrcode) ===== */
+.vp-qrcode {
+  --vp-qrcode-size: 128px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .vp-qrcode {
+    --vp-qrcode-size: 150px;
+  }
+}
+
+.vp-qrcode:not(.card).center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vp-qrcode:not(.card).right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.vp-qrcode .qrcode-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.vp-qrcode .qrcode-label {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: center;
+  word-break: break-all;
+}
+
+.vp-qrcode.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
+  background-color: var(--background-secondary);
+  border-radius: 8px;
+}
+
+.vp-qrcode .qrcode-img {
+  width: var(--vp-qrcode-size);
+  max-width: 100%;
+  height: var(--vp-qrcode-size);
+  aspect-ratio: 1 / 1;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.vp-qrcode .qrcode-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  text-align: center;
+}
+
+.vp-qrcode .qrcode-info > p {
+  margin: 0;
+  word-break: break-all;
+}
+
+.vp-qrcode .qrcode-info .qrcode-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+@media (min-width: 960px) {
+  .vp-qrcode.card {
+    flex-direction: row;
+    gap: 16px;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .vp-qrcode.card .qrcode-info {
+    align-self: center;
+    text-align: left;
+  }
+
+  .vp-qrcode.card.reverse,
+  .vp-qrcode.card.right {
+    flex-direction: row-reverse;
+  }
+
+  .vp-qrcode.card.reverse .qrcode-info,
+  .vp-qrcode.card.right .qrcode-info {
+    text-align: right;
+  }
+
+  .vp-qrcode.card.center {
+    align-items: center;
+  }
+
+  .vp-qrcode.card.center .qrcode-info {
+    flex: initial;
+  }
+}
+
+/* ===== PDF / Video embeds ===== */
+.vp-pdf-viewer,
+.vp-video-embed {
+  margin: 16px 0;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.vp-pdf-iframe,
+.vp-video-iframe {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  border: none;
+  border-radius: 5px;
+  background: var(--background-secondary);
+}
+
+.vp-pdf-iframe {
+  min-height: 240px;
+}
+
+/* ===== Code fence features — aligned with vuepress-theme-plume code.css ===== */
+.vp-code-features {
+  --vp-code-font-size: 0.875em;
+  --vp-code-line-height: 1.7;
+  --vp-code-block-bg: var(--code-background, var(--background-secondary));
+  --vp-code-block-color: var(--code-normal, var(--text-muted));
+  --vp-code-block-divider-color: var(--background-modifier-border);
+  --vp-code-line-number-color: var(--text-faint);
+  --vp-code-line-highlight-color: rgb(142 150 170 / 0.14);
+  --vp-code-line-diff-add-color: rgb(16 185 129 / 0.14);
+  --vp-code-line-diff-remove-color: rgb(244 63 94 / 0.14);
+  --vp-code-line-diff-add-symbol-color: #18794e;
+  --vp-code-line-diff-remove-symbol-color: #b8272c;
+  --vp-code-line-warning-color: rgb(234 179 8 / 0.14);
+  --vp-code-line-error-color: rgb(244 63 94 / 0.14);
+  --vp-c-gray-soft: rgb(142 150 170 / 0.14);
+  --vp-c-default-soft: var(--vp-c-gray-soft);
+  --vp-c-border: var(--background-modifier-border);
+  /* Match Obsidian theme tokens so reading ≈ live preview */
+  --vp-hljs-keyword: var(--code-keyword);
+  --vp-hljs-string: var(--code-string);
+  --vp-hljs-number: var(--code-value);
+  --vp-hljs-comment: var(--code-comment);
+  --vp-hljs-title: var(--code-function);
+  --vp-hljs-built-in: var(--code-function);
+  --vp-hljs-attr: var(--code-property);
+  --vp-hljs-meta: var(--code-important);
+  position: relative;
+  margin: 16px 0;
+  overflow-x: auto;
+  border-radius: 8px;
+  background-color: var(--vp-code-block-bg);
+  transition: background-color 0.25s;
+  scrollbar-width: thin;
+  font-size: 1em;
+}
+
+body.theme-dark .vp-code-features {
+  --vp-code-line-highlight-color: rgb(101 117 133 / 0.16);
+  --vp-code-line-diff-add-color: rgb(16 185 129 / 0.16);
+  --vp-code-line-diff-remove-color: rgb(244 63 94 / 0.16);
+  --vp-code-line-diff-add-symbol-color: #3dd68c;
+  --vp-code-line-diff-remove-symbol-color: #f66f81;
+  --vp-code-line-warning-color: rgb(234 179 8 / 0.16);
+  --vp-code-line-error-color: rgb(244 63 94 / 0.16);
+  --vp-c-gray-soft: rgb(101 117 133 / 0.16);
+}
+
+.vp-code-block-title > .vp-code-features {
+  margin: 0;
+  border-radius: 0 0 8px 8px;
+}
+
+.vp-code-features > pre {
+  position: relative;
+  z-index: 1;
+  padding: 20px 0 !important;
+  margin: 0 !important;
+  overflow-x: auto;
+  background: transparent !important;
+  border: none !important;
   border-radius: 0 !important;
+  box-shadow: none !important;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.vp-code-features code {
+  display: block;
+  width: fit-content;
+  min-width: 100%;
+  padding: 0 24px !important;
+  margin: 0 !important;
+  font-family: var(--font-monospace);
+  font-size: var(--vp-code-font-size);
+  line-height: var(--vp-code-line-height);
+  color: var(--code-normal, var(--vp-code-block-color));
+  background: transparent !important;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  tab-size: 4;
+  -moz-tab-size: 4;
+  direction: ltr;
+  text-align: left;
+  hyphens: none;
+}
+
+.vp-code-features code .line {
+  position: relative;
+  display: block;
+  width: calc(100% + 48px);
+  min-height: calc(1em * var(--vp-code-line-height));
+  padding: 0 24px;
+  margin: 0 -24px;
+  box-sizing: border-box;
+  line-height: var(--vp-code-line-height);
+  white-space: pre;
+}
+
+.vp-code-features code .highlighted {
+  z-index: 2;
+  background-color: var(--vp-code-line-highlight-color);
+}
+
+.vp-code-features code .highlighted.warning {
+  background-color: var(--vp-code-line-warning-color);
+}
+
+.vp-code-features code .highlighted.error {
+  background-color: var(--vp-code-line-error-color);
+}
+
+.vp-code-features code .highlighted-word {
+  padding: 1px 2px;
+  margin: -1px -2px;
+  background-color: var(--vp-c-gray-soft);
+  border: 1px solid var(--vp-c-border);
+  border-radius: 4px;
+}
+
+.vp-code-features code .diff::before {
+  position: absolute;
+  left: 10px;
+  font-weight: 600;
+}
+
+.vp-code-features code .diff.remove {
+  background-color: var(--vp-code-line-diff-remove-color);
+  opacity: 0.7;
+}
+
+.vp-code-features code .diff.remove::before {
+  color: var(--vp-code-line-diff-remove-symbol-color);
+  content: "-";
+}
+
+.vp-code-features code .diff.add {
+  background-color: var(--vp-code-line-diff-add-color);
+}
+
+.vp-code-features code .diff.add::before {
+  color: var(--vp-code-line-diff-add-symbol-color);
+  content: "+";
+}
+
+/* highlight.js tokens */
+.vp-code-features code.hljs .hljs-keyword,
+.vp-code-features code.hljs .hljs-selector-tag,
+.vp-code-features code.hljs .hljs-literal,
+.vp-code-features code.hljs .hljs-section,
+.vp-code-features code.hljs .hljs-link {
+  color: var(--vp-hljs-keyword);
+}
+
+.vp-code-features code.hljs .hljs-string,
+.vp-code-features code.hljs .hljs-doctag,
+.vp-code-features code.hljs .hljs-regexp,
+.vp-code-features code.hljs .hljs-template-tag,
+.vp-code-features code.hljs .hljs-template-variable {
+  color: var(--vp-hljs-string);
+}
+
+.vp-code-features code.hljs .hljs-number,
+.vp-code-features code.hljs .hljs-bullet,
+.vp-code-features code.hljs .hljs-symbol {
+  color: var(--vp-hljs-number);
+}
+
+.vp-code-features code.hljs .hljs-comment,
+.vp-code-features code.hljs .hljs-quote,
+.vp-code-features code.hljs .hljs-deletion {
+  color: var(--vp-hljs-comment);
+  font-style: italic;
+}
+
+.vp-code-features code.hljs .hljs-title,
+.vp-code-features code.hljs .hljs-title.function_,
+.vp-code-features code.hljs .hljs-title.class_,
+.vp-code-features code.hljs .hljs-section {
+  color: var(--vp-hljs-title);
+}
+
+.vp-code-features code.hljs .hljs-built_in,
+.vp-code-features code.hljs .hljs-type,
+.vp-code-features code.hljs .hljs-params {
+  color: var(--vp-hljs-built-in);
+}
+
+.vp-code-features code.hljs .hljs-attr,
+.vp-code-features code.hljs .hljs-attribute,
+.vp-code-features code.hljs .hljs-variable,
+.vp-code-features code.hljs .hljs-name,
+.vp-code-features code.hljs .hljs-selector-attr,
+.vp-code-features code.hljs .hljs-selector-class,
+.vp-code-features code.hljs .hljs-selector-id {
+  color: var(--vp-hljs-attr);
+}
+
+.vp-code-features code.hljs .hljs-meta,
+.vp-code-features code.hljs .hljs-meta .hljs-keyword,
+.vp-code-features code.hljs .hljs-addition {
+  color: var(--vp-hljs-meta);
+}
+
+.vp-code-features code.hljs .hljs-emphasis {
+  font-style: italic;
+}
+
+.vp-code-features code.hljs .hljs-strong {
+  font-weight: 700;
+}
+
+/* Focus: dim / blur non-focused lines (Shiki / VitePress convention) */
+.vp-code-features.has-focused code .line:not(.focused) {
+  filter: blur(0.095rem);
+  opacity: 0.4;
+  transition: filter 0.35s, opacity 0.35s;
+}
+
+.vp-code-features.has-focused:hover code .line:not(.focused) {
+  filter: none;
+  opacity: 1;
+}
+
+/* Line numbers — VuePress 32px gutter; fixed line box matches code .line */
+.vp-code-features.line-numbers-mode {
+  padding-left: 32px;
+}
+
+.vp-code-features.line-numbers-mode > .line-numbers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 32px;
+  height: fit-content;
+  min-height: 100%;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  font-family: var(--font-monospace);
+  font-size: var(--vp-code-font-size);
+  line-height: var(--vp-code-line-height);
+  color: var(--vp-code-line-number-color);
+  text-align: center;
+  border-right: 1px solid var(--vp-code-block-divider-color);
+  user-select: none;
+  pointer-events: none;
+  counter-reset: line-number var(--vp-code-line-number-start, 0);
+}
+
+.vp-code-features.line-numbers-mode > .line-numbers .line-number {
+  position: relative;
+  z-index: 3;
+  display: block;
+  min-height: calc(1em * var(--vp-code-line-height));
+  font-family: inherit;
+  font-size: inherit;
+  line-height: var(--vp-code-line-height);
+  counter-increment: line-number;
+}
+
+.vp-code-features.line-numbers-mode > .line-numbers .line-number::before {
+  content: counter(line-number);
+}
+
+/* Collapsed lines — VuePress gradient handle */
+.vp-code-features.has-collapsed-lines {
+  position: relative;
+}
+
+.vp-code-features.has-collapsed-lines.collapsed {
+  height: calc(
+    var(--vp-collapsed-lines) * var(--vp-code-line-height) * var(--vp-code-font-size) + 62px
+  );
+  overflow: hidden;
+}
+
+.vp-code-features.has-collapsed-lines > .collapsed-lines {
+  --vp-collapsed-lines-bg: var(--vp-code-block-bg);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  display: block;
+  width: auto;
+  height: 44px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--vp-collapsed-lines-bg) 50%,
+    var(--vp-collapsed-lines-bg) 100%
+  );
+}
+
+.vp-code-features.has-collapsed-lines > .collapsed-lines:hover {
+  --vp-collapsed-lines-bg: var(--vp-c-default-soft);
+}
+
+.vp-code-features.has-collapsed-lines > .collapsed-lines::after {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  content: "";
+  transform: rotate(45deg);
+  opacity: 0.7;
+}
+
+/* Keep chevron centered over the code pane when line-numbers gutter is present */
+.vp-code-features.line-numbers-mode.has-collapsed-lines > .collapsed-lines::after {
+  left: calc(50% + 16px);
+}
+
+.vp-code-features.has-collapsed-lines:not(.collapsed) > .collapsed-lines {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+}
+
+.vp-code-features.has-collapsed-lines:not(.collapsed) > .collapsed-lines:hover {
+  --vp-collapsed-lines-bg: transparent;
+}
+
+.vp-code-features.has-collapsed-lines:not(.collapsed) > .collapsed-lines::after {
+  bottom: 8px;
+  transform: rotate(-135deg);
+}
+
+.vp-code-features.has-collapsed-lines:not(.collapsed) code {
+  padding-bottom: 20px !important;
 }

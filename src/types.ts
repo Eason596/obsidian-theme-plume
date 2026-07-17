@@ -48,11 +48,21 @@ export interface TabItem {
   active?: boolean;
 }
 
-export type PromptContainerType = "note" | "info" | "tip" | "warning" | "caution" | "details" | "important";
+export type PromptContainerType =
+  | "note"
+  | "info"
+  | "tip"
+  | "warning"
+  | "caution"
+  | "danger"
+  | "details"
+  | "important";
 
 export interface PromptContainerAttrs {
   type: PromptContainerType;
   title?: string;
+  /** `::: details … {open}` — open by default (VuePress Plume). */
+  open?: boolean;
 }
 
 export interface CardContainerAttrs {
@@ -102,6 +112,8 @@ export interface FieldContainerAttrs {
   optional?: boolean;
   deprecated?: boolean;
   default?: string;
+  /** Remaining description after `@tag` lines (VuePress field body). */
+  description?: string;
 }
 
 // field-group is a structural wrapper; no attributes.
@@ -115,7 +127,7 @@ export interface FlexContainerAttrs {
   gap?: string;
 }
 
-export type AlignContainerType = "left" | "center" | "right";
+export type AlignContainerType = "left" | "center" | "right" | "justify";
 
 export interface AlignContainerAttrs {
   align: AlignContainerType;
@@ -181,6 +193,72 @@ export interface TimelineItemMeta {
   placement?: "left" | "right";
 }
 
+export interface TableContainerAttrs {
+  title?: string;
+  align?: "left" | "center" | "right";
+  copy?: false | "all" | "html" | "md";
+  maxContent?: boolean;
+  fullWidth?: boolean;
+  hlRows?: string;
+  hlCols?: string;
+  hlCells?: string;
+}
+
+export interface NpmToContainerAttrs {
+  tabs?: string[];
+}
+
+export interface QrcodeContainerAttrs {
+  text?: string;
+  title?: string;
+  align?: "left" | "center" | "right";
+  mode?: "img" | "card";
+  reverse?: boolean;
+  width?: number;
+  margin?: number;
+  level?: "L" | "M" | "Q" | "H";
+  light?: string;
+  dark?: string;
+  logo?: string;
+  logoSize?: number;
+}
+
+export interface PdfEmbedAttrs {
+  src: string;
+  page?: number;
+  noToolbar?: boolean;
+  zoom?: number;
+  width?: string;
+  height?: string;
+  ratio?: string;
+  title?: string;
+}
+
+export interface BilibiliEmbedAttrs {
+  bvid?: string;
+  aid?: string;
+  cid?: string;
+  page?: number;
+  autoplay?: boolean;
+  time?: number;
+  title?: string;
+  width?: string;
+  height?: string;
+  ratio?: string;
+}
+
+export interface YoutubeEmbedAttrs {
+  id: string;
+  autoplay?: boolean;
+  loop?: boolean;
+  start?: number;
+  end?: number;
+  title?: string;
+  width?: string;
+  height?: string;
+  ratio?: string;
+}
+
 export interface FileTreePluginSettings {
   defaultIconMode: FileTreeIconMode;
   /** Remember selected tab per `::: tabs#id` / `::: code-tabs#id` in localStorage. */
@@ -222,7 +300,14 @@ export type BlockType =
   | "window"
   | "chat"
   | "timeline"
-  | "align";
+  | "align"
+  | "table"
+  | "npm-to"
+  | "qrcode"
+  | "qrcode-embed"
+  | "pdf-embed"
+  | "bilibili-embed"
+  | "youtube-embed";
 
 export interface ParsedBlock {
   type: BlockType;
@@ -254,6 +339,12 @@ export interface ParsedBlock {
     | WindowContainerAttrs
     | ChatContainerAttrs
     | TimelineContainerAttrs
+    | TableContainerAttrs
+    | NpmToContainerAttrs
+    | QrcodeContainerAttrs
+    | PdfEmbedAttrs
+    | BilibiliEmbedAttrs
+    | YoutubeEmbedAttrs
     | { dirPath: string } & CodeTreeContainerAttrs
     | Record<string, never>;
 }

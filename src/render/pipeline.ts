@@ -4,8 +4,9 @@ import type { ParsedBlock } from "../types";
 import { invokeBlockRenderer } from "./block-registry";
 import {
   decorateCodeBlockTitles,
+  decorateCodeBlockFeatures,
   decorateSubtreeCodeFences,
-  scanCodeFenceTitles
+  scanCodeFences
 } from "./code-fence";
 import {
   type BlockRenderContext,
@@ -132,7 +133,9 @@ export async function renderInnerMarkdown(
 
   if (blocks.length === 0) {
     await renderMarkdownInto(container, markdown, ctx);
-    decorateCodeBlockTitles(container, scanCodeFenceTitles(markdown), ctx.defaultIconMode);
+    const fences = scanCodeFences(markdown);
+    decorateCodeBlockTitles(container, fences, ctx.defaultIconMode);
+    decorateCodeBlockFeatures(container, fences);
     pruneEmptyMarkdownNodes(container);
     return;
   }
@@ -172,7 +175,11 @@ export async function renderInnerMarkdown(
   container.empty();
   const renderedMarkdown = out.join("\n");
   await renderMarkdownInto(container, renderedMarkdown, ctx);
-  decorateCodeBlockTitles(container, scanCodeFenceTitles(renderedMarkdown), ctx.defaultIconMode);
+  {
+    const fences = scanCodeFences(renderedMarkdown);
+    decorateCodeBlockTitles(container, fences, ctx.defaultIconMode);
+    decorateCodeBlockFeatures(container, fences);
+  }
 
   const placeholders = Array.from(
     container.querySelectorAll(`.${BLOCK_PLACEHOLDER_CLASS}[${BLOCK_PLACEHOLDER_ATTR}]`)
