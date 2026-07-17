@@ -74,8 +74,9 @@ export class CodeFenceTitleService {
     if (fences.length > 0) {
       decorateCodeBlockTitles(rootElement, fences, this.getDefaultIconMode());
     }
-    // Always decorate with highlight.js (reading + live preview HTML fences)
-    decorateCodeBlockFeatures(rootElement, fences);
+    // Match features against all fences in the file: Reading view often strips
+    // newlines from `textContent`, so section-local index fallback is unreliable.
+    decorateCodeBlockFeatures(rootElement, all.length > 0 ? all : fences);
   }
 
   refreshDirtyPreviews(): void {

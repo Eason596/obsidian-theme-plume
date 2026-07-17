@@ -736,7 +736,7 @@ Requires network access to GitHub / Gitee API (not in `示例.md`; Obsidian exte
 
 ::: window title="Terminal" height="200"
 
-```bash title="build1.sh"
+```bash title="build.sh"
 npm run build
 ```
 :::
@@ -812,7 +812,7 @@ Theme Plume
 <a id="25-外链-favicon"></a>
 ## 25. External link favicon
 
-In note frontmatter:
+In note frontmatter (wrap with a pair of `---` at the top of the file):
 
 ```yaml
 ---
@@ -822,6 +822,4 @@ link-icon-size: 16
 ```
 
 When enabled, http(s) external links on this page show site favicons (network required). See `Theme-Plume-更新验收.md` in the vault for examples.
-
----
 

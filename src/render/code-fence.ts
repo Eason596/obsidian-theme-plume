@@ -201,12 +201,32 @@ function stripNotationFromLine(line: string): string {
   return line.replace(CODE_NOTATION_RE, "").replace(/\s+$/, "");
 }
 
+/**
+ * Obsidian Reading view often renders fence bodies as sibling spans / tokens
+ * without literal `\n` in `textContent`, so two lines become
+ * `link-icons: truelink-icon-size: 16`. Prefer structured line children when
+ * present; otherwise fall back to text with optional flat-match recovery.
+ */
+function getRenderedCodeLines(code: HTMLElement): string[] {
+  const lineEls = code.querySelectorAll(":scope > .line");
+  if (lineEls.length > 0) {
+    return Array.from(lineEls).map((el) => normalizeCodeText(el.textContent ?? ""));
+  }
+  const html = code.innerHTML;
+  if (/<br\s*\/?>/i.test(html)) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html.replace(/<br\s*\/?>/gi, "\n");
+    return normalizeCodeText(tmp.textContent ?? "").split("\n");
+  }
+  return normalizeCodeText(code.textContent ?? "").split("\n");
+}
+
 /** Match a rendered code block to fence meta by comparing stripped body lines. */
 function findFenceForPre(pre: HTMLElement, fences: CodeFenceMeta[]): CodeFenceMeta | undefined {
   const code = pre.querySelector("code");
   if (!(code instanceof HTMLElement)) return undefined;
-  const rendered = normalizeCodeText(code.textContent ?? "");
-  const renderedLines = rendered.split("\n").map(stripNotationFromLine);
+  const renderedLines = getRenderedCodeLines(code).map(stripNotationFromLine);
+  const renderedFlat = renderedLines.join("");
 
   let best: CodeFenceMeta | undefined;
   let bestScore = -1;
@@ -220,6 +240,14 @@ function findFenceForPre(pre: HTMLElement, fences: CodeFenceMeta[]): CodeFenceMe
 
     // Exact match on stripped lines
     if (body.length === renderedLines.length && body.every((l, i) => l === renderedLines[i])) {
+      return fence;
+    }
+
+    // Obsidian ate newlines: flattened text still matches fence body
+    if (renderedLines.length === 1 && body.length > 1 && body.join("") === renderedFlat) {
+      return fence;
+    }
+    if (body.join("\n") === renderedLines.join("\n")) {
       return fence;
     }
 
@@ -451,9 +479,17 @@ function watchFenceAgainstHighlighter(pre: HTMLElement): void {
   obs.observe(code, { childList: true, characterData: true, subtree: true });
 }
 
+function fenceNeedsFeatureRewrite(meta: CodeFenceMeta): boolean {
+  if (meta.highlightLines.length > 0) return true;
+  if (meta.lineNumbers === true) return true;
+  if (meta.collapsedLines != null) return true;
+  return meta.bodyLines.some((line) => CODE_NOTATION_RE.test(line));
+}
+
 /**
  * Apply VuePress/Shiki-like decorations: `{n}` highlights, `[!code …]`, line numbers, collapse.
- * Re-applies after Obsidian's async syntax highlighter rewrites `<code>` contents.
+ * Plain fences (no Plume meta) are left to Obsidian — rewriting them from textContent
+ * collapses line breaks in Reading view.
  */
 export function decorateCodeBlockFeatures(
   container: HTMLElement,
@@ -468,8 +504,14 @@ export function decorateCodeBlockFeatures(
     let meta = findFenceForPre(pre, fences);
     // Index fallback when content match fails (e.g. empty / mismatched highlighter output)
     if (!meta) {
+      // Only use positional fallback when fence list is scoped 1:1 with DOM pres
       const idx = pres.indexOf(pre);
-      if (idx >= 0 && idx < fences.length && !used.has(fences[idx])) {
+      if (
+        idx >= 0
+        && fences.length === pres.length
+        && idx < fences.length
+        && !used.has(fences[idx])
+      ) {
         meta = fences[idx];
       }
     }
@@ -478,20 +520,15 @@ export function decorateCodeBlockFeatures(
       if (pre.closest(".obsidian-vuepress-prompt-container")) {
         continue;
       }
-      const codeEl = pre.querySelector("code");
-      if (!(codeEl instanceof HTMLElement)) continue;
-      meta = {
-        highlightLines: [],
-        lineNumbers: null,
-        lineNumbersStart: 1,
-        collapsedLines: null,
-        openLine: -1,
-        closeLine: -1,
-        bodyLines: normalizeCodeText(codeEl.textContent ?? "").split("\n")
-      };
+      // No scanned fence and no Plume meta — do not rewrite Obsidian's DOM.
+      continue;
     }
     if (used.has(meta)) continue;
     used.add(meta);
+
+    if (!fenceNeedsFeatureRewrite(meta)) {
+      continue;
+    }
 
     const code = pre.querySelector("code");
     if (!(code instanceof HTMLElement)) continue;

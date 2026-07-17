@@ -165,7 +165,7 @@ export class PreviewPipeline {
     const shouldRerender = isDirty || !snapshotInSync || rootElement.dataset.plumeBlockKey !== blockKey || rootElement.childElementCount === 0;
 
     if (!shouldRerender) {
-      // Still re-apply hljs / titles (Obsidian may have rewritten <code>)
+      // Titles / Plume fence features only — plain code stays Obsidian-rendered
       this.codeFenceTitles.decorateSection(
         rootElement,
         slice,
@@ -192,7 +192,7 @@ export class PreviewPipeline {
     try {
       await renderInnerMarkdown(rootElement, slice, renderCtx);
       this.options.clearDocumentDirty?.(ctx.sourcePath);
-      // Ensure fences in this section use hljs (reading + live preview)
+      // Apply title bars / Plume fence features when present
       this.codeFenceTitles.decorateSection(
         rootElement,
         slice,

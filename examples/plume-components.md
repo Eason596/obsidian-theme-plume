@@ -736,7 +736,7 @@ fn main() {
 
 ::: window title="终端" height="200"
 
-```bash title="build1.sh"
+```bash title="build.sh"
 npm run build
 ```
 :::
@@ -812,7 +812,7 @@ Theme Plume
 <a id="25-外链-favicon"></a>
 ## 25. 外链 favicon
 
-在笔记 frontmatter 写：
+在笔记 frontmatter（文件最上方用一对 `---` 包住）写入：
 
 ```yaml
 ---
@@ -821,7 +821,6 @@ link-icon-size: 16
 ---
 ```
 
-开启后，本页 http(s) 外链前会显示网站图标（需网络）。示例见库内 `Theme-Plume-更新验收.md`。
 
----
+开启后，本页 http(s) 外链前会显示网站图标（需网络）。示例见库内 `Theme-Plume-更新验收.md`。
 
