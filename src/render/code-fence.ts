@@ -1,6 +1,7 @@
-import { setIcon } from "obsidian";
+import { setIcon, type Component } from "obsidian";
 import { resolveNodeIcon } from "../icons";
 import type { FileTreeIconMode } from "../types";
+import { hashString } from "../utils/hash";
 import {
   getActiveShikiThemeId,
   highlightSourceLines,
@@ -12,6 +13,13 @@ import { prepareIconifyIconElement, processIconifyIcons } from "./iconify-online
 
 export const CODE_TITLE_PROCESSED_ATTR = "data-vp-code-title-done";
 export const CODE_FEATURES_PROCESSED_ATTR = "data-vp-code-features-done";
+
+const SCAN_CACHE_MAX = 12;
+const scanCache = new Map<string, CodeFenceMeta[]>();
+
+/** Body lines kept off the DOM attribute (see writeFenceMetaAttr). */
+const fenceBodyByPre = new WeakMap<HTMLElement, string[]>();
+const fenceObserverByPre = new WeakMap<HTMLElement, MutationObserver>();
 
 export interface CodeFenceMeta {
   title?: string;
@@ -98,11 +106,51 @@ function parseFenceInfo(info: string): Omit<CodeFenceMeta, "openLine" | "closeLi
   return { title, language, highlightLines, lineNumbers, lineNumbersStart, collapsedLines };
 }
 
+/** Lightweight title scan — no bodyLines (for editor-change title reconcile). */
 export function scanCodeFenceTitles(markdown: string): Array<{ title?: string }> {
-  return scanCodeFences(markdown).map((f) => ({ title: f.title }));
+  const lines = markdown.split(/\r?\n/);
+  const result: Array<{ title?: string }> = [];
+  let fenceChar = "";
+  let fenceLen = 0;
+  let currentTitle: string | undefined;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (fenceLen > 0) {
+      const closeRe = new RegExp(`^\\s*${fenceChar}{${fenceLen},}\\s*$`);
+      if (closeRe.test(line)) {
+        result.push({ title: currentTitle });
+        fenceChar = "";
+        fenceLen = 0;
+        currentTitle = undefined;
+      }
+      continue;
+    }
+    const open = line.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
+    if (!open) continue;
+    fenceChar = open[2][0];
+    fenceLen = open[2].length;
+    currentTitle = parseFenceInfo(open[3] ?? "").title;
+  }
+  if (fenceLen > 0) {
+    result.push({ title: currentTitle });
+  }
+  return result;
+}
+
+function scanCacheKey(markdown: string): string {
+  return `${markdown.length}:${hashString(markdown)}`;
+}
+
+export function clearCodeFenceScanCache(): void {
+  scanCache.clear();
 }
 
 export function scanCodeFences(markdown: string): CodeFenceMeta[] {
+  const key = scanCacheKey(markdown);
+  const hit = scanCache.get(key);
+  if (hit) return hit;
+
   const lines = markdown.split(/\r?\n/);
   const result: CodeFenceMeta[] = [];
   let fenceChar = "";
@@ -153,6 +201,12 @@ export function scanCodeFences(markdown: string): CodeFenceMeta[] {
       bodyLines: bodyLines.slice()
     });
   }
+
+  if (scanCache.size >= SCAN_CACHE_MAX) {
+    const oldest = scanCache.keys().next().value;
+    if (oldest !== undefined) scanCache.delete(oldest);
+  }
+  scanCache.set(key, result);
   return result;
 }
 
@@ -245,49 +299,80 @@ function getRenderedCodeLines(code: HTMLElement): string[] {
   return normalizeCodeText(code.textContent ?? "").split("\n");
 }
 
-/** Match a rendered code block to fence meta by comparing stripped body lines. */
-function findFenceForPre(pre: HTMLElement, fences: CodeFenceMeta[]): CodeFenceMeta | undefined {
+interface FenceBodyIndex {
+  byLines: Map<string, CodeFenceMeta[]>;
+  byFlat: Map<string, CodeFenceMeta[]>;
+  fences: CodeFenceMeta[];
+}
+
+function buildFenceBodyIndex(fences: CodeFenceMeta[]): FenceBodyIndex {
+  const byLines = new Map<string, CodeFenceMeta[]>();
+  const byFlat = new Map<string, CodeFenceMeta[]>();
+  for (const fence of fences) {
+    const stripped = fence.bodyLines.map(stripNotationFromLine);
+    const key = stripped.join("\n");
+    const list = byLines.get(key);
+    if (list) list.push(fence);
+    else byLines.set(key, [fence]);
+    if (stripped.length > 1) {
+      const flat = stripped.join("");
+      const flatList = byFlat.get(flat);
+      if (flatList) flatList.push(fence);
+      else byFlat.set(flat, [fence]);
+    }
+  }
+  return { byLines, byFlat, fences };
+}
+
+function takeUnusedFence(
+  bucket: CodeFenceMeta[] | undefined,
+  used: Set<CodeFenceMeta>
+): CodeFenceMeta | undefined {
+  if (!bucket) return undefined;
+  for (const fence of bucket) {
+    if (!used.has(fence)) return fence;
+  }
+  return undefined;
+}
+
+/** Match a rendered code block to fence meta via body hash index + soft fallback. */
+function findFenceForPreIndexed(
+  pre: HTMLElement,
+  index: FenceBodyIndex,
+  used: Set<CodeFenceMeta>
+): CodeFenceMeta | undefined {
   const code = pre.querySelector("code");
   if (!(code instanceof HTMLElement)) return undefined;
   const renderedLines = getRenderedCodeLines(code).map(stripNotationFromLine);
+  const renderedKey = renderedLines.join("\n");
   const renderedFlat = renderedLines.join("");
 
-  let best: CodeFenceMeta | undefined;
-  let bestScore = -1;
+  const exact = takeUnusedFence(index.byLines.get(renderedKey), used);
+  if (exact) return exact;
 
-  for (const fence of fences) {
-    const body = fence.bodyLines.map(stripNotationFromLine);
-    if (body.length === 0 && renderedLines.length === 0) {
-      return fence;
-    }
-    if (body.length === 0) continue;
-
-    // Exact match on stripped lines
-    if (body.length === renderedLines.length && body.every((l, i) => l === renderedLines[i])) {
-      return fence;
-    }
-
-    // Obsidian ate newlines: flattened text still matches fence body
-    if (renderedLines.length === 1 && body.length > 1 && body.join("") === renderedFlat) {
-      return fence;
-    }
-    if (body.join("\n") === renderedLines.join("\n")) {
-      return fence;
-    }
-
-    // Soft match: same length and majority equal
-    if (body.length === renderedLines.length) {
-      let eq = 0;
-      for (let i = 0; i < body.length; i += 1) {
-        if (body[i] === renderedLines[i]) eq += 1;
-      }
-      if (eq > bestScore) {
-        bestScore = eq;
-        best = fence;
-      }
-    }
+  // Obsidian ate newlines: flattened text still matches fence body
+  if (renderedLines.length === 1 && renderedFlat) {
+    const flatHit = takeUnusedFence(index.byFlat.get(renderedFlat), used);
+    if (flatHit) return flatHit;
   }
 
+  // Soft match: same length and majority equal (rare path)
+  let best: CodeFenceMeta | undefined;
+  let bestScore = -1;
+  for (const fence of index.fences) {
+    if (used.has(fence)) continue;
+    const body = fence.bodyLines.map(stripNotationFromLine);
+    if (body.length === 0 && renderedLines.length === 0) return fence;
+    if (body.length === 0 || body.length !== renderedLines.length) continue;
+    let eq = 0;
+    for (let i = 0; i < body.length; i += 1) {
+      if (body[i] === renderedLines[i]) eq += 1;
+    }
+    if (eq > bestScore) {
+      bestScore = eq;
+      best = fence;
+    }
+  }
   if (best && bestScore >= Math.max(1, Math.floor((best.bodyLines.length || 1) * 0.6))) {
     return best;
   }
@@ -507,82 +592,135 @@ function looksAlreadyDecorated(code: HTMLElement, meta: CodeFenceMeta): boolean 
 const activeFenceObservers = new Set<MutationObserver>();
 const activeFenceTimers = new Set<number>();
 
+/** Attr payload without bodyLines — bodies live in fenceBodyByPre. */
+interface FenceMetaAttr {
+  title?: string;
+  language?: string;
+  highlightLines: number[];
+  lineNumbers: boolean | null;
+  lineNumbersStart: number;
+  collapsedLines: number | null;
+  openLine: number;
+  closeLine: number;
+}
+
 function isHtmlElement(node: Element | null): node is HTMLElement {
   return !!node && typeof (node as HTMLElement).classList !== "undefined";
 }
 
-function scheduleFenceReapply(pre: HTMLElement): void {
+function writeFenceMetaAttr(pre: HTMLElement, meta: CodeFenceMeta): void {
+  fenceBodyByPre.set(pre, meta.bodyLines);
+  const lite: FenceMetaAttr = {
+    title: meta.title,
+    language: meta.language,
+    highlightLines: meta.highlightLines,
+    lineNumbers: meta.lineNumbers,
+    lineNumbersStart: meta.lineNumbersStart,
+    collapsedLines: meta.collapsedLines,
+    openLine: meta.openLine,
+    closeLine: meta.closeLine
+  };
+  pre.dataset.vpFenceMeta = JSON.stringify(lite);
+}
+
+function readFenceMeta(pre: HTMLElement): CodeFenceMeta | null {
   const raw = pre.dataset.vpFenceMeta;
-  if (!raw) return;
-  let meta: CodeFenceMeta;
+  if (!raw) return null;
   try {
-    meta = JSON.parse(raw) as CodeFenceMeta;
+    const lite = JSON.parse(raw) as FenceMetaAttr;
+    const bodyLines = fenceBodyByPre.get(pre) ?? [];
+    return { ...lite, bodyLines };
   } catch {
-    return;
+    return null;
   }
+}
+
+function clearPreFenceTimers(pre: HTMLElement): void {
+  for (const key of ["vpFenceTimer", "vpFenceTimer2"] as const) {
+    const id = Number(pre.dataset[key] ?? 0) || 0;
+    if (id) {
+      window.clearTimeout(id);
+      activeFenceTimers.delete(id);
+      delete pre.dataset[key];
+    }
+  }
+}
+
+function disconnectFenceWatcher(pre: HTMLElement): void {
+  const obs = fenceObserverByPre.get(pre);
+  if (obs) {
+    obs.disconnect();
+    activeFenceObservers.delete(obs);
+    fenceObserverByPre.delete(pre);
+  }
+  delete pre.dataset.vpFenceWatch;
+  clearPreFenceTimers(pre);
+}
+
+function scheduleFenceReapply(pre: HTMLElement, component?: Component): void {
+  const meta = readFenceMeta(pre);
+  if (!meta) return;
 
   const gen = String((Number(pre.dataset.vpFenceGen ?? "0") || 0) + 1);
   pre.dataset.vpFenceGen = gen;
-
-  const clearPreTimers = (): void => {
-    for (const key of ["vpFenceTimer", "vpFenceTimer2"] as const) {
-      const id = Number(pre.dataset[key] ?? 0) || 0;
-      if (id) {
-        window.clearTimeout(id);
-        activeFenceTimers.delete(id);
-        delete pre.dataset[key];
-      }
-    }
-  };
-  clearPreTimers();
+  clearPreFenceTimers(pre);
 
   const run = (): void => {
     if (pre.dataset.vpFenceGen !== gen) return;
     const code = pre.querySelector("code");
     if (!isHtmlElement(code)) return;
-    if (looksAlreadyDecorated(code, meta)) return;
+    if (looksAlreadyDecorated(code, meta)) {
+      disconnectFenceWatcher(pre);
+      return;
+    }
     const sourceLines =
       meta.bodyLines.length > 0
         ? meta.bodyLines
         : normalizeCodeText(code.textContent ?? "").split("\n");
-    void applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta));
+    void applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta)).then(() => {
+      if (pre.dataset.vpFenceGen !== gen) return;
+      const next = pre.querySelector("code");
+      if (isHtmlElement(next) && looksAlreadyDecorated(next, meta)) {
+        disconnectFenceWatcher(pre);
+      }
+    });
   };
 
-  // Debounced retries to beat Obsidian's highlighter without stampeding Shiki
+  // One short settle pass — Obsidian hljs usually finishes within a frame.
   const timer = window.setTimeout(() => {
     activeFenceTimers.delete(timer);
+    delete pre.dataset.vpFenceTimer;
     run();
-    const timer2 = window.setTimeout(() => {
-      activeFenceTimers.delete(timer2);
-      if (pre.dataset.vpFenceGen !== gen) return;
-      run();
-    }, 180);
-    activeFenceTimers.add(timer2);
-    pre.dataset.vpFenceTimer2 = String(timer2);
-  }, 32);
+  }, 60);
   activeFenceTimers.add(timer);
   pre.dataset.vpFenceTimer = String(timer);
+  component?.register(() => {
+    window.clearTimeout(timer);
+    activeFenceTimers.delete(timer);
+  });
 }
 
-function watchFenceAgainstHighlighter(pre: HTMLElement): void {
+function watchFenceAgainstHighlighter(pre: HTMLElement, component?: Component): void {
   if (typeof MutationObserver === "undefined") return;
   if (pre.dataset.vpFenceWatch === "1") return;
-  pre.dataset.vpFenceWatch = "1";
   const code = pre.querySelector("code");
   if (!isHtmlElement(code)) return;
+  pre.dataset.vpFenceWatch = "1";
 
   const obs = new MutationObserver(() => {
     if (!pre.isConnected) {
-      obs.disconnect();
-      activeFenceObservers.delete(obs);
-      delete pre.dataset.vpFenceWatch;
+      disconnectFenceWatcher(pre);
       return;
     }
     if (pre.dataset.vpCodeWriting === "1") return;
-    scheduleFenceReapply(pre);
+    scheduleFenceReapply(pre, component);
   });
   activeFenceObservers.add(obs);
+  fenceObserverByPre.set(pre, obs);
   obs.observe(code, { childList: true, characterData: true, subtree: true });
+  component?.register(() => {
+    disconnectFenceWatcher(pre);
+  });
 }
 
 /** Disconnect fence MutationObservers and pending reapply timers (plugin onunload). */
@@ -595,6 +733,7 @@ export function disconnectAllFenceWatchers(): void {
     window.clearTimeout(id);
   }
   activeFenceTimers.clear();
+  clearCodeFenceScanCache();
 }
 
 /**
@@ -602,7 +741,7 @@ export function disconnectAllFenceWatchers(): void {
  * Safe when `bodyLines` come from the markdown scan (real newlines). Do not rewrite
  * from collapsed `textContent` alone — that was the Reading-view one-line bug.
  */
-function fenceNeedsFeatureRewrite(meta: CodeFenceMeta): boolean {
+export function fenceNeedsFeatureRewrite(meta: CodeFenceMeta): boolean {
   if (meta.bodyLines.length > 0) return true;
   if (meta.highlightLines.length > 0) return true;
   if (meta.lineNumbers === true) return true;
@@ -613,34 +752,68 @@ function fenceNeedsFeatureRewrite(meta: CodeFenceMeta): boolean {
   return false;
 }
 
+/** Soft-flush skip: avoid full decorate when titles/features are already applied. */
+export function sectionNeedsFenceDecorate(
+  root: HTMLElement,
+  fences: CodeFenceMeta[]
+): boolean {
+  if (fences.length === 0) return false;
+  if (!root.querySelector("pre")) return false;
+
+  const titled = fences.filter((f) => !!f.title);
+  if (titled.length > 0) {
+    const bars = root.querySelectorAll(".vp-code-block-title, .vp-code-block-title-bar").length;
+    if (bars < titled.length) return true;
+  }
+
+  const needsRewrite = fences.some(fenceNeedsFeatureRewrite);
+  if (!needsRewrite) return titled.length > 0 && !root.querySelector(".vp-code-block-title");
+
+  return !!root.querySelector(`pre:not([${CODE_FEATURES_PROCESSED_ATTR}])`);
+}
+
+export interface DecorateCodeFeaturesOptions {
+  /**
+   * When section-scoped matching fails (e.g. Reading view collapsed newlines),
+   * retry against this broader fence list.
+   */
+  fallbackFences?: CodeFenceMeta[];
+}
+
 /**
  * Apply Shiki highlighting + VuePress decorations: `{n}` highlights, `[!code …]`,
  * line numbers, collapse. Unmatched Obsidian fences (no scanned meta) are left alone.
  */
 export async function decorateCodeBlockFeatures(
   container: HTMLElement,
-  fences: CodeFenceMeta[]
+  fences: CodeFenceMeta[],
+  component?: Component,
+  options?: DecorateCodeFeaturesOptions
 ): Promise<void> {
   const pres = listCodeBlockPres(container);
   if (pres.length === 0) return;
 
   const used = new Set<CodeFenceMeta>();
+  const primaryIndex = buildFenceBodyIndex(fences);
+  const fallbackIndex = options?.fallbackFences
+    ? buildFenceBodyIndex(options.fallbackFences)
+    : null;
   const jobs: Array<Promise<void>> = [];
 
-  for (const pre of pres) {
-    let meta = findFenceForPre(pre, fences);
-    // Index fallback when content match fails (e.g. empty / mismatched highlighter output)
-    if (!meta) {
-      // Only use positional fallback when fence list is scoped 1:1 with DOM pres
-      const idx = pres.indexOf(pre);
-      if (
-        idx >= 0
-        && fences.length === pres.length
-        && idx < fences.length
-        && !used.has(fences[idx])
-      ) {
-        meta = fences[idx];
-      }
+  for (let idx = 0; idx < pres.length; idx += 1) {
+    const pre = pres[idx];
+    let meta = findFenceForPreIndexed(pre, primaryIndex, used);
+    if (!meta && fallbackIndex) {
+      meta = findFenceForPreIndexed(pre, fallbackIndex, used);
+    }
+    // Positional fallback when fence list is scoped 1:1 with DOM pres
+    if (
+      !meta
+      && fences.length === pres.length
+      && idx < fences.length
+      && !used.has(fences[idx])
+    ) {
+      meta = fences[idx];
     }
     if (!meta) {
       // Indented tip bodies become accidental <pre>; never wrap those in fence chrome.
@@ -660,26 +833,33 @@ export async function decorateCodeBlockFeatures(
     const code = pre.querySelector("code");
     if (!(code instanceof HTMLElement)) continue;
 
+    // Skip second decorate pass when Shiki + features are already stable.
+    if (
+      pre.getAttribute(CODE_FEATURES_PROCESSED_ATTR) === "1"
+      && looksAlreadyDecorated(code, meta)
+    ) {
+      continue;
+    }
+
     const sourceLines =
       meta.bodyLines.length > 0
         ? meta.bodyLines
         : normalizeCodeText(code.textContent ?? "").split("\n");
 
-    pre.dataset.vpFenceMeta = JSON.stringify({
-      title: meta.title,
-      language: meta.language,
-      highlightLines: meta.highlightLines,
-      lineNumbers: meta.lineNumbers,
-      lineNumbersStart: meta.lineNumbersStart,
-      collapsedLines: meta.collapsedLines,
-      openLine: meta.openLine,
-      closeLine: meta.closeLine,
-      bodyLines: meta.bodyLines
-    } satisfies CodeFenceMeta);
-
-    jobs.push(applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta)));
-    watchFenceAgainstHighlighter(pre);
-    scheduleFenceReapply(pre);
+    writeFenceMetaAttr(pre, meta);
+    watchFenceAgainstHighlighter(pre, component);
+    jobs.push(
+      (async () => {
+        await applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta));
+        const next = pre.querySelector("code");
+        if (isHtmlElement(next) && looksAlreadyDecorated(next, meta)) {
+          // One settle check for late Obsidian hljs clobber, then disconnect.
+          scheduleFenceReapply(pre, component);
+          return;
+        }
+        scheduleFenceReapply(pre, component);
+      })()
+    );
   }
 
   await Promise.all(jobs);
@@ -765,11 +945,11 @@ export function decorateCodeBlockTitles(
 
   const titled = fences.filter((f) => !!f.title);
   const used = new Set<CodeFenceMeta>();
+  const titledIndex = buildFenceBodyIndex(titled);
   const pres = listCodeBlockPres(container);
 
   for (const pre of pres) {
-    const unused = titled.filter((f) => !used.has(f));
-    const meta = findFenceForPre(pre, unused) ?? findFenceForPre(pre, titled);
+    const meta = findFenceForPreIndexed(pre, titledIndex, used);
     const existing = pre.closest(".vp-code-block-title") as HTMLElement | null;
 
     if (!meta?.title) {
@@ -821,14 +1001,41 @@ export function decorateCodeBlockTitles(
 export async function decorateSubtreeCodeFences(
   root: HTMLElement,
   markdown: string,
-  mode: FileTreeIconMode
+  mode: FileTreeIconMode,
+  component?: Component
 ): Promise<void> {
   if (!markdown.trim()) {
     return;
   }
   const fences = scanCodeFences(markdown);
   decorateCodeBlockTitles(root, fences, mode);
-  await decorateCodeBlockFeatures(root, fences);
+  await decorateCodeBlockFeatures(root, fences, component);
+}
+
+/** Recolor already decorated fences after an Obsidian light/dark or theme change. */
+export async function refreshDecoratedCodeFences(root: HTMLElement): Promise<void> {
+  const jobs: Array<Promise<void>> = [];
+  for (const pre of Array.from(root.querySelectorAll<HTMLElement>("pre[data-vp-fence-meta]"))) {
+    const meta = readFenceMeta(pre);
+    if (!meta) continue;
+    const code = pre.querySelector("code");
+    if (!(code instanceof HTMLElement)) continue;
+
+    let sourceLines = meta.bodyLines;
+    if (sourceLines.length === 0) {
+      // WeakMap empty after reload — prefer structured .line children.
+      // Never fall back to flat textContent (Reading-view one-line bug).
+      const lineCount = code.querySelectorAll(":scope > .line").length;
+      if (lineCount === 0) {
+        continue;
+      }
+      sourceLines = getRenderedCodeLines(code);
+      fenceBodyByPre.set(pre, sourceLines);
+    }
+
+    jobs.push(applyFeatureDom(pre, meta, buildDecoratedLines(sourceLines, meta)));
+  }
+  await Promise.all(jobs);
 }
 
 function updateWrapperTitle(wrapper: HTMLElement, title: string, mode: FileTreeIconMode): void {

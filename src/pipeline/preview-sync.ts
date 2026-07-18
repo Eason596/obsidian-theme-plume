@@ -1,5 +1,24 @@
 import type { MarkdownSubView, MarkdownView } from "obsidian";
 
+export interface MarkdownViewState {
+  mode: string;
+  sourcePath: string;
+}
+
+/** Normalize EOLs so Windows `\r\n` vault reads compare equal to Obsidian's `\n` snapshots. */
+export function normalizeMarkdownNewlines(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+/** A reading view also "enters" preview when its leaf switches files in-place. */
+export function entersPreviewTarget(
+  previous: MarkdownViewState | undefined,
+  current: MarkdownViewState
+): boolean {
+  return current.mode === "preview"
+    && (previous?.mode !== "preview" || previous.sourcePath !== current.sourcePath);
+}
+
 /**
  * Keeps editor buffer + dirty state; refreshes Plume blocks without previewMode.set/rerender.
  * Avoids scroll jumps and flicker from full preview rebuilds.
@@ -8,19 +27,24 @@ import type { MarkdownSubView, MarkdownView } from "obsidian";
  * units across reading and source/live-preview) — never raw pixel tops.
  */
 export class PreviewDocumentSync {
+  private static readonly MAX_TRACKED_PATHS = 256;
   private readonly liveText = new Map<string, string>();
   private readonly dirtyPaths = new Set<string>();
   /** Last MarkdownSubView scroll (line-based) per file. */
   private readonly scrollByPath = new Map<string, number>();
   /** Last markdown text successfully pushed into reading-mode preview. */
   private readonly lastSyncedPreviewText = new Map<string, string>();
+  private readonly pathOrder = new Map<string, true>();
+  private readonly scrollRetryTimers = new Set<number>();
 
   setLiveText(sourcePath: string, text: string): void {
-    this.liveText.set(sourcePath, text);
+    this.touch(sourcePath);
+    this.liveText.set(sourcePath, normalizeMarkdownNewlines(text));
   }
 
   markDirty(sourcePath: string, text: string): void {
-    this.liveText.set(sourcePath, text);
+    this.touch(sourcePath);
+    this.liveText.set(sourcePath, normalizeMarkdownNewlines(text));
     this.dirtyPaths.add(sourcePath);
   }
 
@@ -32,19 +56,33 @@ export class PreviewDocumentSync {
     this.dirtyPaths.delete(sourcePath);
   }
 
+  /**
+   * Clear dirty only when the live buffer still matches `renderedText`.
+   * Prevents a slow section commit from wiping dirty for a newer edit.
+   */
+  clearDirtyIfMatches(sourcePath: string, renderedText: string): void {
+    const live = this.liveText.get(sourcePath);
+    if (live !== undefined && live !== normalizeMarkdownNewlines(renderedText)) {
+      return;
+    }
+    this.dirtyPaths.delete(sourcePath);
+  }
+
   getLiveText(sourcePath: string, fallback: string): string {
-    return this.liveText.get(sourcePath) ?? fallback;
+    return this.liveText.get(sourcePath) ?? normalizeMarkdownNewlines(fallback);
   }
 
   /** True when reading preview has never been synced, or editor text differs. */
   hasPreviewSourceChanged(sourcePath: string, text: string): boolean {
     const last = this.lastSyncedPreviewText.get(sourcePath);
-    return last === undefined || last !== text;
+    return last === undefined || last !== normalizeMarkdownNewlines(text);
   }
 
   markPreviewSynced(sourcePath: string, text: string): void {
-    this.lastSyncedPreviewText.set(sourcePath, text);
-    this.liveText.set(sourcePath, text);
+    this.touch(sourcePath);
+    const normalized = normalizeMarkdownNewlines(text);
+    this.lastSyncedPreviewText.set(sourcePath, normalized);
+    this.liveText.set(sourcePath, normalized);
     this.dirtyPaths.delete(sourcePath);
   }
 
@@ -53,6 +91,23 @@ export class PreviewDocumentSync {
     this.dirtyPaths.delete(sourcePath);
     this.scrollByPath.delete(sourcePath);
     this.lastSyncedPreviewText.delete(sourcePath);
+    this.pathOrder.delete(sourcePath);
+  }
+
+  clear(): void {
+    this.clearScrollRetryTimers();
+    this.liveText.clear();
+    this.dirtyPaths.clear();
+    this.scrollByPath.clear();
+    this.lastSyncedPreviewText.clear();
+    this.pathOrder.clear();
+  }
+
+  clearScrollRetryTimers(): void {
+    for (const id of this.scrollRetryTimers) {
+      window.clearTimeout(id);
+    }
+    this.scrollRetryTimers.clear();
   }
 
   /** Capture MarkdownSubView scroll; null if unavailable. */
@@ -81,6 +136,7 @@ export class PreviewDocumentSync {
     if (!Number.isFinite(scroll) || scroll < 0) {
       return;
     }
+    this.touch(sourcePath);
     this.scrollByPath.set(sourcePath, scroll);
   }
 
@@ -144,9 +200,16 @@ export class PreviewDocumentSync {
       apply();
       window.requestAnimationFrame(apply);
     });
-    window.setTimeout(apply, 50);
-    window.setTimeout(apply, 150);
-    window.setTimeout(apply, 300);
+    const schedule = (delayMs: number): void => {
+      const id = window.setTimeout(() => {
+        this.scrollRetryTimers.delete(id);
+        apply();
+      }, delayMs);
+      this.scrollRetryTimers.add(id);
+    };
+    schedule(50);
+    schedule(150);
+    schedule(300);
   }
 
   /** Restore reading-mode scroll after previewMode.set. */
@@ -163,6 +226,16 @@ export class PreviewDocumentSync {
     )) {
       delete el.dataset.plumeBlockKey;
       el.classList.remove("plume-has-block");
+    }
+  }
+
+  private touch(sourcePath: string): void {
+    this.pathOrder.delete(sourcePath);
+    this.pathOrder.set(sourcePath, true);
+    while (this.pathOrder.size > PreviewDocumentSync.MAX_TRACKED_PATHS) {
+      const oldest = this.pathOrder.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      this.deleteLive(oldest);
     }
   }
 }

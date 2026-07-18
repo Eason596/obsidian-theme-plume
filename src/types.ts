@@ -260,6 +260,8 @@ export interface YoutubeEmbedAttrs {
 }
 
 export interface FileTreePluginSettings {
+  /** Language used by the plugin settings page. */
+  settingsLanguage: SettingsLanguage;
   defaultIconMode: FileTreeIconMode;
   /** Remember selected tab per `::: tabs#id` / `::: code-tabs#id` in localStorage. */
   persistTabSelection: boolean;
@@ -276,14 +278,17 @@ export interface FileTreePluginSettings {
 }
 
 export const DEFAULT_SETTINGS: FileTreePluginSettings = {
+  settingsLanguage: "en",
   defaultIconMode: "colored",
   persistTabSelection: true,
   collapseLazyBodies: true,
-  tabsLazyPanels: true,
+  tabsLazyPanels: false,
   debugRender: false,
   shikiThemeLight: "vitesse-light",
   shikiThemeDark: "vitesse-dark"
 };
+
+export type SettingsLanguage = "zh-CN" | "en";
 
 export type BlockType =
   | "file-tree"

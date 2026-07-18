@@ -21,4 +21,17 @@ describe("npm-to", () => {
     expect(md).toContain("@tab yarn");
     expect(md).toContain("yarn add");
   });
+
+  it("does not emit trailing blank lines inside each tab fence", () => {
+    const md = npmToCodeTabsMarkdown(
+      "```sh\nnpm install -D vuepress vuepress-theme-plume\n```\n",
+      ["npm", "pnpm", "yarn"]
+    );
+    expect(md).toBeTruthy();
+    // One trailing \n before closing ``` is normal; a blank content line (\n\n) is not.
+    expect(md).not.toMatch(/```\w*\n[^\n`]+\n\n```/);
+    for (const m of md!.matchAll(/```\w*\n([\s\S]*?)\n```/g)) {
+      expect(m[1].split("\n")).toEqual([m[1]]);
+    }
+  });
 });

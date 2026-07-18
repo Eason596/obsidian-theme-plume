@@ -1,6 +1,6 @@
 import type { App, Component, MarkdownPostProcessorContext } from "obsidian";
 import type { PlumeMarkdownContext } from "../markdown/plume-markdown";
-import type { CodeTreeFileItem, FileTreeIconMode } from "../types";
+import type { CodeTreeFileItem, FileTreeIconMode, ParsedBlock } from "../types";
 
 export interface BlockRenderContext {
   app: App;
@@ -14,6 +14,8 @@ export interface BlockRenderContext {
     sourcePath: string,
     dirPath: string
   ) => Promise<CodeTreeFileItem[] | null>;
+  /** Optional content-keyed parser (nested card/tab bodies). */
+  parseBlocks?: (markdown: string) => ParsedBlock[];
   /** Plugin settings snapshot for renderers. */
   settings?: PlumeRenderSettings;
   /** Bumps on each editor change so nested UI (tabs/collapse) can invalidate caches. */

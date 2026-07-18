@@ -1,10 +1,15 @@
-import { App, Component, type IconName, MarkdownPostProcessorContext, Notice, requestUrl, setIcon } from "obsidian";
+import { App, Component, MarkdownPostProcessorContext, Notice, setIcon } from "obsidian";
 import { renderPlumeMarkdown, type PlumeMarkdownContext } from "./markdown/plume-markdown";
-import { applyVuepressMarkdownTransforms } from "./render/markdown-transforms";
+import {
+  applyVuepressMarkdownTransforms,
+  sectionHasPlumeContainers
+} from "./render/markdown-transforms";
 import { resolveNodeIcon } from "./icons";
 import { registerBlockRenderer } from "./render/block-registry";
 import { prepareIconifyIconElement, processIconifyIcons } from "./render/iconify-online";
 import { renderCollapseBlock } from "./render/blocks/collapse";
+import { renderLinkCardBlock } from "./render/blocks/link-card";
+import { renderRepoCardBlock } from "./render/blocks/repo-card";
 import {
   decorateCodeBlockTitles,
   decorateCodeBlockFeatures,
@@ -28,6 +33,7 @@ import {
   BLOCK_PLACEHOLDER_ATTR,
   BLOCK_PLACEHOLDER_CLASS,
   contentIsOnlyBlocksAndBlankLines,
+  parseBlocksForContext,
   pruneEmptyMarkdownNodes,
   renderInnerMarkdown,
   renderNestedMarkdownContent,
@@ -35,10 +41,16 @@ import {
 } from "./render/pipeline";
 import { renderTabbedContainer } from "./render/tabbed-container";
 import { renderInlineMarkdownInto } from "./render/inline";
+import { applyInlineIcon as applySharedInlineIcon } from "./render/inline-icon";
+import {
+  classifyLinkHref,
+  safeImageUrl,
+  safeResourceUrl
+} from "./utils/safe-url";
+import { unlockHostHeight } from "./utils/unlock-host-height";
 import {
   fileTreeToCMDText,
   normalizeCodeTreePath,
-  parseAllBlocks,
   parseCodeTreeFileNodes,
   parseCodeTreeRawContent,
   parseFieldContent,
@@ -58,12 +70,16 @@ export {
 export {
   scanCodeFenceTitles,
   scanCodeFences,
+  clearCodeFenceScanCache,
   decorateCodeBlockTitles,
   decorateCodeBlockFeatures,
   decorateSubtreeCodeFences,
-  disconnectAllFenceWatchers
+  refreshDecoratedCodeFences,
+  disconnectAllFenceWatchers,
+  sectionNeedsFenceDecorate,
+  fenceNeedsFeatureRewrite
 } from "./render/code-fence";
-export type { CodeFenceMeta } from "./render/code-fence";
+export type { CodeFenceMeta, DecorateCodeFeaturesOptions } from "./render/code-fence";
 import type {
   CardContainerAttrs,
   CardGridContainerAttrs,
@@ -107,10 +123,8 @@ import {
   npmToCodeTabsMarkdown,
   type NpmToPackageManager
 } from "./render/npm-to";
-import {
-  generateQrDataUrl,
-  isHttpLike
-} from "./render/qrcode";
+import { isHttpLike } from "./render/qrcode-attrs";
+import { generateQrDataUrl } from "./render/qrcode-loader";
 import {
   buildBilibiliSrc,
   buildPdfSrc,
@@ -993,7 +1007,7 @@ export function renderPromptContainerInto(container: HTMLElement, options: Rende
       bodyMarkdown,
       options.markdownContext
     );
-    unlockPromptHostHeight(details);
+    unlockPromptHostHeight(details, options.markdownContext?.component);
     return;
   }
 
@@ -1018,7 +1032,7 @@ export function renderPromptContainerInto(container: HTMLElement, options: Rende
     options.markdownContext
   );
   pruneEmptyMarkdownNodes(body);
-  unlockPromptHostHeight(wrapper);
+  unlockPromptHostHeight(wrapper, options.markdownContext?.component);
 }
 
 export function renderStepsInto(container: HTMLElement, options: RenderStepsOptions): void {
@@ -1047,7 +1061,7 @@ export async function gatherMasonryItems(
     return [];
   }
 
-  const blocks = parseAllBlocks(trimmed, ctx.defaultIconMode);
+  const blocks = parseBlocksForContext(trimmed, ctx);
 
   if (blocks.length > 0 && contentIsOnlyBlocksAndBlankLines(trimmed, blocks)) {
     const staging = document.createElement("div");
@@ -1316,6 +1330,7 @@ async function renderTabsBlock(
     persistSelection: ctx.settings?.persistTabSelection !== false,
     lazyPanels: ctx.settings?.tabsLazyPanels !== false,
     contentEpoch: ctx.contentEpoch,
+    component: ctx.component,
     renderPanel: (panel, markdown) => renderInnerMarkdown(panel, markdown, ctx)
   });
 }
@@ -1334,6 +1349,7 @@ async function renderCodeTabsBlock(
     persistSelection: ctx.settings?.persistTabSelection !== false,
     lazyPanels: ctx.settings?.tabsLazyPanels !== false,
     contentEpoch: ctx.contentEpoch,
+    component: ctx.component,
     renderPanel: (panel, markdown) => renderInnerMarkdown(panel, markdown, ctx)
   });
 }
@@ -1423,7 +1439,7 @@ async function renderPromptBlock(
 
     await renderInnerMarkdown(body, bodyMarkdown, ctx);
     pruneEmptyMarkdownNodes(body);
-    unlockPromptHostHeight(details);
+    unlockPromptHostHeight(details, ctx.component);
     return;
   }
 
@@ -1444,7 +1460,7 @@ async function renderPromptBlock(
 
   await renderInnerMarkdown(body, bodyMarkdown, ctx);
   pruneEmptyMarkdownNodes(body);
-  unlockPromptHostHeight(wrapper);
+  unlockPromptHostHeight(wrapper, ctx.component);
 }
 
 /** Separate non-empty lines into paragraphs so soft breaks become real wraps. */
@@ -1469,33 +1485,8 @@ function normalizePromptBodyMarkdown(content: string): string {
   return parts.join("");
 }
 
-function unlockPromptHostHeight(promptEl: HTMLElement): void {
-  const apply = (): void => {
-    if (!promptEl.isConnected) return;
-    promptEl.style.height = "fit-content";
-    promptEl.style.minHeight = "0";
-    promptEl.style.maxHeight = "none";
-    let node: HTMLElement | null = promptEl.parentElement;
-    while (node) {
-      if (
-        node.classList.contains("markdown-preview-section")
-        || node.classList.contains("plume-has-block")
-        || node.classList.contains("cm-preview-code-block")
-      ) {
-        node.style.minHeight = "0";
-        node.style.height = "auto";
-      }
-      if (node.classList.contains("markdown-preview-sizer")) {
-        break;
-      }
-      node = node.parentElement;
-    }
-  };
-  apply();
-  window.requestAnimationFrame(apply);
-  window.setTimeout(apply, 0);
-  window.setTimeout(apply, 50);
-  window.setTimeout(apply, 200);
+function unlockPromptHostHeight(promptEl: HTMLElement, component?: Component): void {
+  unlockHostHeight(promptEl, component);
 }
 
 async function renderCardBlock(
@@ -1518,7 +1509,7 @@ async function renderCardBlock(
     // Attach before painting icons — Obsidian setIcon only works on connected nodes.
     wrapper.appendChild(header);
     if (icon) {
-      applyInlineIcon(header, icon, "vp-card-icon vp-icon");
+      applySharedInlineIcon(header, icon, "vp-card-icon vp-icon");
     }
     if (title) {
       const titleEl = document.createElement("span");
@@ -1616,7 +1607,7 @@ async function renderCardGridBlock(
   }
   container.appendChild(wrapper);
 
-  const blocks = parseAllBlocks(content, ctx.defaultIconMode);
+  const blocks = parseBlocksForContext(content, ctx);
   if (blocks.length > 0 && contentIsOnlyBlocksAndBlankLines(content, blocks)) {
     await renderPlumeBlocksInto(wrapper, blocks, ctx);
     return;
@@ -1654,6 +1645,10 @@ function measureMasonryItemHeight(item: HTMLElement): number {
 
 function bindMasonryImageLoads(root: HTMLElement, onChange: () => void): void {
   for (const img of Array.from(root.querySelectorAll<HTMLImageElement>("img"))) {
+    // Favicons are tiny and numerous — do not re-pack masonry for each one.
+    if (img.classList.contains("vp-link-favicon")) {
+      continue;
+    }
     if (img.dataset.plumeMasonryImgBound === "1") {
       continue;
     }
@@ -1819,256 +1814,6 @@ async function renderCardMasonryBlock(
   });
 }
 
-/* ===== RepoCard ===== */
-
-interface RepoCardInfo {
-  name: string;
-  fullName: string;
-  description: string;
-  url: string;
-  stars: number;
-  forks: number;
-  language: string;
-  languageColor: string;
-  archived: boolean;
-  visibility: "Private" | "Public";
-  template: boolean;
-  ownerType: "User" | "Organization";
-  license: { name: string; url?: string } | null;
-}
-
-const REPO_CARD_CACHE_KEY = "vp-plume-repo-card-cache";
-const REPO_CARD_TTL_MS = 24 * 60 * 60 * 1000;
-
-// Inline SVGs lifted from the VuePress RepoCard component so we don't depend
-// on Iconify or an external icon font in Obsidian.
-const REPO_ICONS = {
-  github:
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7a.75.75 0 1 1-1.072 1.05A2.5 2.5 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.5 2.5 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.25.25 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/></svg>',
-  gitee:
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="#c71d23" d="M11.984 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12a12 12 0 0 0 12-12A12 12 0 0 0 12 0zm6.09 5.333c.328 0 .593.266.592.593v1.482a.594.594 0 0 1-.593.592H9.777c-.982 0-1.778.796-1.778 1.778v5.63c0 .327.266.592.593.592h5.63c.982 0 1.778-.796 1.778-1.778v-.296a.593.593 0 0 0-.592-.593h-4.15a.59.59 0 0 1-.592-.592v-1.482a.593.593 0 0 1 .593-.592h6.815c.327 0 .593.265.593.592v3.408a4 4 0 0 1-4 4H5.926a.593.593 0 0 1-.593-.593V9.778a4.444 4.444 0 0 1 4.445-4.444h8.296Z"/></svg>',
-  star:
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 256 256"><path fill="currentColor" d="M243 96a20.33 20.33 0 0 0-17.74-14l-56.59-4.57l-21.84-52.81a20.36 20.36 0 0 0-37.66 0L87.35 77.44L30.76 82a20.45 20.45 0 0 0-11.66 35.88l43.18 37.24l-13.2 55.7A20.37 20.37 0 0 0 79.57 233L128 203.19L176.43 233a20.39 20.39 0 0 0 30.49-22.15l-13.2-55.7l43.18-37.24A20.43 20.43 0 0 0 243 96m-70.47 45.7a12 12 0 0 0-3.84 11.86L181.58 208l-47.29-29.08a12 12 0 0 0-12.58 0L74.42 208l12.89-54.4a12 12 0 0 0-3.84-11.86l-42.27-36.5l55.4-4.47a12 12 0 0 0 10.13-7.38L128 41.89l21.27 51.5a12 12 0 0 0 10.13 7.38l55.4 4.47Z"/></svg>',
-  fork:
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 256 256"><path fill="currentColor" d="M228 64a36 36 0 1 0-48 33.94V112a4 4 0 0 1-4 4H80a4 4 0 0 1-4-4V97.94a36 36 0 1 0-24 0V112a28 28 0 0 0 28 28h36v18.06a36 36 0 1 0 24 0V140h36a28 28 0 0 0 28-28V97.94A36.07 36.07 0 0 0 228 64M64 52a12 12 0 1 1-12 12a12 12 0 0 1 12-12m64 152a12 12 0 1 1 12-12a12 12 0 0 1-12 12m64-128a12 12 0 1 1 12-12a12 12 0 0 1-12 12"/></svg>',
-  license:
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M4.5 13.5h7M8.01 1v12.06M1.5 3.5h3l1.5-1h4l1.5 1h3M.5 10L3 4.48L5.5 10C4 11 2 11 .5 10m10 0L13 4.48L15.5 10c-1.5 1-3.5 1-5 0"/></svg>'
-};
-
-function appendSvgMarkup(host: HTMLElement, svg: string): void {
-  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
-  const svgElement = parsed.documentElement;
-  if (svgElement.nodeName.toLowerCase() !== "svg") {
-    return;
-  }
-  host.appendChild(host.ownerDocument.importNode(svgElement, true));
-}
-
-function loadRepoCardCache(): Record<string, { info: RepoCardInfo; updatedAt: number }> {
-  try {
-    const raw = window.localStorage.getItem(REPO_CARD_CACHE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Record<string, { info: RepoCardInfo; updatedAt: number }>;
-  } catch {
-    return {};
-  }
-}
-
-function saveRepoCardCache(cache: Record<string, { info: RepoCardInfo; updatedAt: number }>): void {
-  try {
-    window.localStorage.setItem(REPO_CARD_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // localStorage quota / disabled — silently degrade, the next render will refetch.
-  }
-}
-
-function convertThousand(num: number): number | string {
-  if (!Number.isFinite(num)) return 0;
-  if (num < 1000) return num;
-  return `${(num / 1000).toFixed(1)}k`;
-}
-
-async function fetchRepoInfo(provider: "github" | "gitee", owner: string, name: string): Promise<RepoCardInfo | null> {
-  const url = `https://api.pengzhanbo.cn/${provider}/repo/${owner}/${name}`;
-  try {
-    // Obsidian's requestUrl bypasses CORS — required because the upstream
-    // proxy doesn't send Access-Control-Allow-Origin for arbitrary apps.
-    const res = await requestUrl({ url, method: "GET" });
-    if (res.status < 200 || res.status >= 300) return null;
-    const json = res.json as RepoCardInfo;
-    if (!json || !json.name) return null;
-    return json;
-  } catch {
-    return null;
-  }
-}
-
-async function renderRepoCardBlock(
-  container: HTMLElement,
-  attrs: RepoCardContainerAttrs
-): Promise<void> {
-  const provider = attrs.provider ?? "github";
-  const [owner = "", name = ""] = (attrs.repo || "").split("/");
-  if (!owner || !name) return;
-
-  const wrapper = container.createDiv({ cls: "vp-repo-card" });
-  wrapper.dataset.provider = provider;
-  wrapper.dataset.repo = `${owner}/${name}`;
-
-  // Skeleton: show the slug + link immediately so the card has a useful
-  // fallback if the API call fails or the user is offline.
-  const fallbackUrl =
-    provider === "gitee"
-      ? `https://gitee.com/${owner}/${name}`
-      : `https://github.com/${owner}/${name}`;
-
-  const nameRow = wrapper.createEl("p", { cls: "repo-name" });
-  const providerIcon = nameRow.createSpan({ cls: `repo-provider-icon repo-provider-${provider}` });
-  appendSvgMarkup(providerIcon, REPO_ICONS[provider]);
-  const linkWrap = nameRow.createSpan({ cls: "repo-link" });
-  const link = linkWrap.createEl("a", {
-    href: fallbackUrl,
-    text: `${owner}/${name}`,
-    attr: { target: "_blank", rel: "noopener noreferrer", title: `${owner}/${name}` }
-  });
-  const visibilityBadge = nameRow.createSpan({ cls: "repo-visibility", text: "Public" });
-
-  const desc = wrapper.createEl("p", { cls: "repo-desc", text: "Loading…" });
-  const info = wrapper.createDiv({ cls: "repo-info" });
-
-  const populate = (data: RepoCardInfo): void => {
-    link.textContent =
-      attrs.fullname || (data.ownerType === "Organization" && attrs.fullname === undefined)
-        ? data.fullName
-        : data.name;
-    link.setAttribute("href", data.url || fallbackUrl);
-    link.setAttribute("title", data.fullName);
-    visibilityBadge.textContent =
-      data.visibility + (data.template ? " Template" : "") + (data.archived ? " archive" : "");
-    visibilityBadge.classList.toggle("archived", !!data.archived);
-    desc.textContent = data.description || "";
-    info.empty();
-    if (data.language) {
-      const p = info.createEl("p");
-      const dot = p.createSpan({ cls: "repo-language" });
-      if (data.languageColor) dot.style.setProperty("--repo-language-color", data.languageColor);
-      p.createSpan({ text: data.language });
-    }
-    {
-      const p = info.createEl("p", { attr: { title: `Stars: ${data.stars}` } });
-      const icon = p.createSpan({ cls: "repo-stat-icon" });
-      appendSvgMarkup(icon, REPO_ICONS.star);
-      p.createSpan({ text: String(convertThousand(data.stars)) });
-    }
-    {
-      const p = info.createEl("p", { attr: { title: `Forks: ${data.forks}` } });
-      const icon = p.createSpan({ cls: "repo-stat-icon" });
-      appendSvgMarkup(icon, REPO_ICONS.fork);
-      p.createSpan({ text: String(convertThousand(data.forks)) });
-    }
-    if (data.license) {
-      const p = info.createEl("p", { attr: { title: `License: ${data.license.name}` } });
-      const icon = p.createSpan({ cls: "repo-stat-icon" });
-      appendSvgMarkup(icon, REPO_ICONS.license);
-      p.createSpan({ text: data.license.name });
-    }
-  };
-
-  const cacheKey = `${provider}:${owner}/${name}`;
-  const cache = loadRepoCardCache();
-  const cached = cache[cacheKey];
-  if (cached?.info?.name && Date.now() - cached.updatedAt <= REPO_CARD_TTL_MS) {
-    populate(cached.info);
-    return;
-  }
-
-  const fresh = await fetchRepoInfo(provider, owner, name);
-  if (!fresh) {
-    desc.textContent = cached?.info?.description ?? "";
-    if (cached?.info) populate(cached.info);
-    return;
-  }
-  populate(fresh);
-  cache[cacheKey] = { info: fresh, updatedAt: Date.now() };
-  saveRepoCardCache(cache);
-}
-
-/* ===== LinkCard ===== */
-
-const LINK_CARD_ARROW_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
-
-function isExternalHref(href: string): boolean {
-  return /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href);
-}
-
-async function renderLinkCardBlock(
-  container: HTMLElement,
-  rawContent: string,
-  attrs: LinkCardContainerAttrs,
-  ctx: BlockRenderContext
-): Promise<void> {
-  const href = attrs.href.trim();
-  if (!href) return;
-  const external = isExternalHref(href);
-
-  const wrapper = container.createDiv({ cls: "vp-link-card" });
-  const body = wrapper.createSpan({ cls: "body" });
-
-  // The whole card is clickable via an absolutely-positioned link::before
-  // overlay (matches VuePress behaviour), so the visible <a> just needs to
-  // host the title row.
-  const link = body.createEl("a", {
-    cls: external ? "link external-link" : "link internal-link",
-    href: external ? href : "#",
-    text: ""
-  });
-  if (external) {
-    link.setAttribute("target", attrs.target ?? "_blank");
-    link.setAttribute("rel", attrs.rel ?? "noopener noreferrer");
-  } else {
-    // Internal Obsidian note path — hijack click to use workspace opener so
-    // hover-preview and tab/split modifiers still work.
-    link.setAttribute("data-href", href);
-    link.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      const inNewLeaf =
-        ev.ctrlKey || ev.metaKey || (ev as MouseEvent).button === 1;
-      ctx.app.workspace.openLinkText(href, ctx.sourcePath, inNewLeaf);
-    });
-  }
-
-  if (attrs.icon) {
-    applyInlineIcon(link, attrs.icon, "vp-link-card-icon vp-icon");
-  }
-
-  const titleText = attrs.title?.trim() || href;
-  link.createSpan({ cls: "text", text: titleText });
-
-  // Description: explicit attr wins; otherwise fall back to container body
-  // (rendered as markdown so users can write rich text).
-  if (attrs.description) {
-    body.createEl("p", { cls: "vp-link-card-desc", text: attrs.description });
-  } else {
-    const bodyMd = rawContent.replace(/^\n+|\n+$/g, "");
-    if (bodyMd) {
-      // Use div (not p) so nested block markdown / lists stay valid HTML.
-      const descHost = body.createDiv({ cls: "vp-link-card-desc" });
-      await renderInnerMarkdown(descHost, bodyMd, ctx);
-      const onlyP =
-        descHost.children.length === 1 && descHost.firstElementChild?.tagName === "P"
-          ? (descHost.firstElementChild as HTMLElement)
-          : null;
-      if (onlyP) {
-        while (onlyP.firstChild) descHost.appendChild(onlyP.firstChild);
-        onlyP.remove();
-      }
-    }
-  }
-
-  const arrow = wrapper.createSpan({ cls: "vp-link-card-arrow" });
-  appendSvgMarkup(arrow, LINK_CARD_ARROW_SVG);
-}
 
 async function renderTableBlock(
   container: HTMLElement,
@@ -2246,14 +1991,14 @@ async function renderQrcodeBlock(
 function resolvePdfUrl(src: string, ctx: BlockRenderContext): string {
   const raw = src.trim();
   if (!raw) return "";
-  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|data:|blob:)/i.test(raw)) {
-    return raw.startsWith("//") ? `https:${raw}` : raw;
+  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(raw)) {
+    return safeResourceUrl(raw) ?? "";
   }
   const file = ctx.app.metadataCache.getFirstLinkpathDest(raw, ctx.sourcePath);
   if (file) {
     return ctx.app.vault.getResourcePath(file);
   }
-  return raw;
+  return "";
 }
 
 function renderPdfEmbed(
@@ -2315,12 +2060,14 @@ function resolveImageSrc(
 ): string {
   const src = raw.trim();
   if (!src) return "";
-  // External / absolute / data URLs — use directly.
-  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|\/|data:|blob:)/i.test(src)) return src;
+  // External / data / resource URLs are accepted only from image-safe schemes.
+  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|data:)/i.test(src)) {
+    return safeImageUrl(src) ?? "";
+  }
   // Vault-relative path — resolve through Obsidian.
   const file = ctx.app.metadataCache.getFirstLinkpathDest(src, ctx.sourcePath);
   if (file) return ctx.app.vault.getResourcePath(file);
-  return src;
+  return "";
 }
 
 function formatImageCardDate(raw: string | undefined): string {
@@ -2374,9 +2121,25 @@ async function renderImageCardBlock(
   if (attrs.title) {
     const titleEl = info.createEl("h3", { cls: "title" });
     if (attrs.href) {
-      const a = titleEl.createEl("a", { cls: "no-icon", href: attrs.href, text: attrs.title });
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
+      const linkHref = classifyLinkHref(attrs.href);
+      if (linkHref.kind === "external") {
+        const a = titleEl.createEl("a", {
+          cls: "no-icon",
+          href: linkHref.href,
+          text: attrs.title
+        });
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      } else if (linkHref.kind === "internal") {
+        const a = titleEl.createEl("a", { cls: "no-icon", href: "#", text: attrs.title });
+        a.dataset.href = linkHref.href;
+        a.addEventListener("click", (event) => {
+          event.preventDefault();
+          void ctx.app.workspace.openLinkText(linkHref.href, ctx.sourcePath, false);
+        });
+      } else {
+        titleEl.createSpan({ text: attrs.title });
+      }
     } else {
       titleEl.createSpan({ text: attrs.title });
     }
@@ -2573,7 +2336,7 @@ async function renderFlexBlock(
   }
 
   const mdCtx = toPlumeMarkdownContext(ctx);
-  const blocks = parseAllBlocks(bodyMd, ctx.defaultIconMode);
+  const blocks = parseBlocksForContext(bodyMd, ctx);
 
   if (blocks.length > 0 && contentIsOnlyBlocksAndBlankLines(bodyMd, blocks)) {
     await renderPlumeBlocksInto(wrapper, blocks, ctx);
@@ -2927,7 +2690,7 @@ async function renderTimelineBlock(
     const pointEl = document.createElement("span");
     pointEl.className = "vp-timeline-point";
     if (meta.icon) {
-      applyInlineIcon(pointEl, meta.icon, "vp-icon");
+      applySharedInlineIcon(pointEl, meta.icon, "vp-icon");
     }
     lineEl.appendChild(pointEl);
     itemEl.appendChild(lineEl);
@@ -2964,80 +2727,6 @@ async function renderTimelineBlock(
     itemEl.appendChild(containerEl);
     box.appendChild(itemEl);
   }
-}
-
-function applyInlineIcon(host: HTMLElement, icon: string, className: string): void {
-  const trimmed = icon.trim();
-  if (!trimmed) return;
-  const isImage =
-    /^(https?:)?\/\//i.test(trimmed)
-    || trimmed.startsWith("data:")
-    || /\.(png|jpe?g|gif|svg|webp|avif)$/i.test(trimmed);
-  if (isImage) {
-    const img = document.createElement("img");
-    img.className = className.includes("vp-icon") ? className : `${className} vp-icon-img`;
-    img.src = trimmed;
-    img.alt = "";
-    img.loading = "lazy";
-    host.appendChild(img);
-    return;
-  }
-
-  const span = document.createElement("span");
-  const classes = new Set(className.split(/\s+/).filter(Boolean));
-  classes.add("vp-icon");
-  span.className = Array.from(classes).join(" ");
-  span.setAttribute("aria-hidden", "true");
-  host.appendChild(span);
-
-  // VuePress / Iconify: `collection:name` (incl. `twemoji:…`)
-  if (trimmed.includes(":")) {
-    span.setAttribute("data-provider", "iconify");
-    prepareIconifyIconElement(span, trimmed);
-    void processIconifyIcons(span);
-    return;
-  }
-
-  // Bare name (e.g. smile / sparkles): try Obsidian Lucide, then Iconify lucide:name
-  // (matches VuePress card docs that accept short Lucide ids).
-  void paintBareIcon(span, trimmed);
-}
-
-/** Obsidian setIcon, with Iconify lucide fallback when the id is missing or not yet connected. */
-async function paintBareIcon(span: HTMLElement, iconId: string): Promise<void> {
-  const tryObsidian = (): boolean => {
-    if (!span.isConnected) {
-      return false;
-    }
-    span.empty();
-    try {
-      setIcon(span, iconId as IconName);
-    } catch {
-      return false;
-    }
-    return !!span.querySelector("svg");
-  };
-
-  if (tryObsidian()) {
-    return;
-  }
-
-  // Wait briefly for the card host to attach (render may build into a staging node).
-  for (let i = 0; i < 20; i += 1) {
-    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-    if (tryObsidian()) {
-      return;
-    }
-    if (span.isConnected) {
-      break;
-    }
-  }
-
-  // Fallback: Iconify lucide collection (VuePress-compatible short names).
-  span.empty();
-  span.setAttribute("data-provider", "iconify");
-  prepareIconifyIconElement(span, `lucide:${iconId}`);
-  await processIconifyIcons(span);
 }
 
 // ===========================================================================
@@ -3080,6 +2769,7 @@ export async function processBadges(
   if (
     !markdownContext
     || rootElement.classList.contains("plume-has-block")
+    || rootElement.classList.contains("plume-section-absorbed")
     || rootElement.dataset.plumeBadgeRerender === "1"
   ) {
     return;
@@ -3094,12 +2784,27 @@ export async function processBadges(
   const sectionMarkdown = lines
     .slice(sectionInfo.lineStart, sectionInfo.lineEnd + 1)
     .join("\n");
+  // PreviewPipeline owns container sections. Re-rendering them with Obsidian's
+  // MarkdownRenderer leaves raw `::: card` text and can finish *after* the
+  // pipeline commit, wiping a successful card (Badge/Iconify inside the body
+  // is what used to trigger this path).
+  if (sectionHasPlumeContainers(sectionMarkdown)) {
+    return;
+  }
+
   const transformed = applyVuepressMarkdownTransforms(sectionMarkdown);
   if (transformed === sectionMarkdown) {
     return;
   }
 
   rootElement.dataset.plumeBadgeRerender = "1";
+  // Pipeline may have claimed this section while we were deciding to re-render.
+  if (
+    rootElement.classList.contains("plume-has-block")
+    || rootElement.classList.contains("plume-section-absorbed")
+  ) {
+    return;
+  }
   await renderPlumeMarkdown(rootElement, transformed, markdownContext);
 }
 
@@ -3114,6 +2819,9 @@ const GITHUB_ALERT_TYPES = new Set([
 ]);
 
 export function processGithubAlerts(rootElement: HTMLElement): void {
+  if (!rootElement.querySelector(".callout[data-callout]")) {
+    return;
+  }
   const callouts = rootElement.querySelectorAll<HTMLElement>(".callout[data-callout]");
   callouts.forEach((callout) => {
     if (callout.classList.contains("vp-github-alert")) {
@@ -3134,7 +2842,14 @@ export function processGithubAlerts(rootElement: HTMLElement): void {
   });
 }
 
-export function processPlots(rootElement: HTMLElement): void {
+export function processPlots(rootElement: HTMLElement, sourceHint?: string): void {
+  // Fast path: skip TreeWalker when the note/section cannot contain plot markers.
+  if (sourceHint !== undefined) {
+    if (!sourceHint.includes("!!")) return;
+  } else if (!rootElement.textContent?.includes("!!")) {
+    return;
+  }
+
   const textNodes: Text[] = [];
   const walker = document.createTreeWalker(
     rootElement,

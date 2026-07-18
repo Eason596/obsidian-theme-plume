@@ -1,4 +1,4 @@
-import { codeToHtml } from "shiki";
+import { getDemoHighlighter } from "./demo-markdown";
 
 /**
  * Render section source as plain text — never through marked / Plume.
@@ -19,7 +19,8 @@ export async function mountPlainSourceCode(
   parent.appendChild(pre);
 
   try {
-    const html = await codeToHtml(sourceMd, {
+    const highlighter = await getDemoHighlighter();
+    const html = highlighter.codeToHtml(sourceMd, {
       lang: "markdown",
       themes: { light: "vitesse-light", dark: "vitesse-dark" },
       defaultColor: false

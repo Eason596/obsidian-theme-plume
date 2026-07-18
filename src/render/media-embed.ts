@@ -116,19 +116,24 @@ export function extractYoutubeId(raw: string): string {
   try {
     const url = new URL(s.startsWith("//") ? `https:${s}` : s);
     if (url.hostname.includes("youtu.be")) {
-      return url.pathname.replace(/^\//, "").split("/")[0] || "";
+      const id = url.pathname.replace(/^\//, "").split("/")[0] || "";
+      return /^[\w-]{6,}$/.test(id) ? id : "";
     }
     const v = url.searchParams.get("v");
-    if (v) return v;
+    if (v) return /^[\w-]{6,}$/.test(v) ? v : "";
     const parts = url.pathname.split("/").filter(Boolean);
     const embedIdx = parts.indexOf("embed");
-    if (embedIdx >= 0 && parts[embedIdx + 1]) return parts[embedIdx + 1];
+    if (embedIdx >= 0 && parts[embedIdx + 1]) {
+      return /^[\w-]{6,}$/.test(parts[embedIdx + 1]) ? parts[embedIdx + 1] : "";
+    }
     const shortsIdx = parts.indexOf("shorts");
-    if (shortsIdx >= 0 && parts[shortsIdx + 1]) return parts[shortsIdx + 1];
+    if (shortsIdx >= 0 && parts[shortsIdx + 1]) {
+      return /^[\w-]{6,}$/.test(parts[shortsIdx + 1]) ? parts[shortsIdx + 1] : "";
+    }
   } catch {
     /* plain id */
   }
-  return s;
+  return /^[\w-]{6,}$/.test(s) ? s : "";
 }
 
 export function parseYoutubeEmbed(info: string, idRaw: string): YoutubeEmbedAttrs {
@@ -185,7 +190,7 @@ export function buildYoutubeSrc(attrs: YoutubeEmbedAttrs): string {
   if (attrs.start) params.set("start", String(attrs.start));
   if (attrs.end) params.set("end", String(attrs.end));
   const qs = params.toString();
-  return `https://www.youtube.com/embed/${attrs.id}${qs ? `?${qs}` : ""}`;
+  return `https://www.youtube.com/embed/${encodeURIComponent(attrs.id)}${qs ? `?${qs}` : ""}`;
 }
 
 export function buildPdfSrc(resolvedUrl: string, attrs: PdfEmbedAttrs): string {
@@ -249,6 +254,8 @@ export function createVideoIframe(
       src,
       title,
       allow: IFRAME_ALLOW,
+      sandbox: "allow-scripts allow-same-origin allow-presentation allow-popups",
+      referrerpolicy: "strict-origin-when-cross-origin",
       allowfullscreen: "true",
       frameborder: "0",
       scrolling: "no",
@@ -276,6 +283,7 @@ export function createPdfIframe(
     attr: {
       src,
       title,
+      referrerpolicy: "no-referrer",
       allowfullscreen: "true",
       frameborder: "0"
     }

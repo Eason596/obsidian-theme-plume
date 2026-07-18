@@ -33,7 +33,7 @@ import type {
 } from "./types";
 import { parseTableAttrs } from "./render/table-block";
 import { parseNpmToTabsAttr } from "./render/npm-to";
-import { parseQrcodeAttrs } from "./render/qrcode";
+import { parseQrcodeAttrs } from "./render/qrcode-attrs";
 import {
   parseBilibiliEmbed,
   parsePdfEmbed,

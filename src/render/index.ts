@@ -8,12 +8,16 @@ export {
 export {
   scanCodeFenceTitles,
   scanCodeFences,
+  clearCodeFenceScanCache,
   decorateCodeBlockTitles,
   decorateCodeBlockFeatures,
   decorateSubtreeCodeFences,
-  disconnectAllFenceWatchers
+  refreshDecoratedCodeFences,
+  disconnectAllFenceWatchers,
+  sectionNeedsFenceDecorate,
+  fenceNeedsFeatureRewrite
 } from "./code-fence";
-export type { CodeFenceMeta } from "./code-fence";
+export type { CodeFenceMeta, DecorateCodeFeaturesOptions } from "./code-fence";
 export { gatherMasonryItems } from "../render";
 export { renderTabbedContainer } from "./tabbed-container";
 export { renderCollapseBlock } from "./blocks/collapse";

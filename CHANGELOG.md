@@ -2,7 +2,36 @@
 
 > **English** | [中文](./CHANGELOG.zh-CN.md)
 
-## Unreleased
+## 1.2.1
+
+### Changed
+
+- Desktop-only (`isDesktopOnly`): QR generation ships as sibling `qrcode-lib.cjs` (loaded via Electron `require`), kept out of `main.js`.
+- Shared `enrichRenderedRoot` for badges / Iconify / alerts / plots / favicons; pipeline and global post-processor no longer double-apply.
+
+### Fixed
+
+- Soft flush skips unchanged Plume sections by `blockKey` / render sentinel (no dirty-forced `card-masonry` rebuild).
+- Soft flush no longer marks Reading synced without `previewMode.set`; after a real set, skip re-entering Reading leading sections.
+- Normalize CR/LF before stale-snapshot checks so Windows vault reads no longer skip `::: card` / containers.
+- Do not re-render Plume container sections in `processBadges` (Badge/Iconify inside `::: card` was racing the pipeline and leaving raw `:::` markers).
+- Badges / Iconify / favicons enrich once: pipeline owns `.plume-has-block` hosts; global post-processor skips them.
+- Link favicons: fetch via Obsidian `requestUrl` into data URLs (remote `<img>` is often blocked in preview); site → Yandex → Google, host cache + concurrency cap; live frontmatter text preferred over MetadataCache.
+- Clear document dirty only when the live buffer still matches the rendered text (avoids fast-typing races).
+- Theme refresh of decorated fences prefers `.line` children when WeakMap body is missing (no Reading one-line flatten).
+- Title-signature dirty is kept when no title bars exist yet; release attaches `qrcode-lib.cjs`.
+- Fence decorate skip / coalesced watchers / scan cache / section-scoped feature matching / height-unlock helper.
+- Shiki now loads supported grammars and curated themes on demand while sharing one color pipeline across Live Preview and Reading view; production `main.js` is minified.
+- Render-pass components now release tab synchronization listeners, masonry observers, Markdown render children, and code-fence watchers when a section is replaced.
+- Reject active-content URL schemes in cards/embeds, sandbox media frames, and sanitize remotely fetched Iconify SVG markup.
+- Track Markdown mode per split view and debounce refreshes per file, so simultaneous panes/files no longer overwrite each other's state.
+- Bound parse, preview, Iconify, tab, favicon, repo-card, and section caches; clear path state on vault delete/rename.
+- Limit code-tree directory embeds to bounded file/byte totals with eight concurrent reads and event-driven cache invalidation.
+- Split link-card, repo-card, and inline-icon rendering out of the monolithic renderer; add pull-request CI and release test gates.
+- Restore remote PDF display by allowing Chromium's built-in PDF viewer, render Badge/Iconify syntax as editable Live Preview widgets, and detect block DOM replaced by Obsidian so masonry is rebuilt instead of leaving its opening marker.
+- Align tabs/code-tabs DOM, spacing, active bars, focus states, and keyboard behavior with VuePress Theme Plume; active tabs are no longer exposed as disabled and panels are direct children like upstream.
+- Make Tabs and Code Tabs active indicators fully visible at 3px with a restrained accent glow.
+- Add a persistent Chinese/English language selector to the plugin settings page; first run follows the current Obsidian language and switching updates the page immediately.
 
 ## 1.2.0
 

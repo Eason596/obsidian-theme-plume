@@ -2,7 +2,7 @@
 
 > [English](./README.md) | **中文**
 
-在 Obsidian **阅读视图**中渲染 [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume) 的 Markdown 容器语法（`::: file-tree`、`::: tabs`、`::: steps` 等）。
+在 Obsidian **实时预览与阅读视图**中渲染 [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume) 的 Markdown 容器语法（`::: file-tree`、`::: tabs`、`::: steps` 等）。
 
 | | |
 |---|---|
@@ -15,7 +15,7 @@
 
 本仓库是将 [vuepress-theme-plume](https://github.com/pengzhanbo/vuepress-theme-plume) 的 Markdown 增强能力**迁移到 Obsidian** 的独立插件，**并非**上游官方仓库。解析、渲染与样式对齐过程中大量使用了 **AI 辅助开发工具**（如 Cursor）。
 
-- 仅覆盖 Plume 的 **Markdown 容器与阅读视图渲染**，不包含 VuePress 站点主题、导航、博客、搜索等。
+- 仅覆盖 Plume 的 **Markdown 容器与 Obsidian 预览渲染**，不包含 VuePress 站点主题、导航、博客、搜索等。
 - 上游主题为 MIT；本仓库同样 MIT，并保留上游版权声明，详见 [NOTICE](./NOTICE)。
 
 ## 功能概览
@@ -24,7 +24,7 @@
 - 嵌入语法：`@[code-tree]`、`@[qrcode]`、`@[pdf]`、`@[bilibili]`、`@[youtube]`。
 - 容器内正文交给 **Obsidian 自带 Markdown 引擎**渲染，不内置 markdown-it。
 - 代码块信息串中的 `title="..."` 会显示为 Plume 风格标题栏（`src/pipeline/code-fence-titles.ts`）。
-- 带 Plume 特性的代码围栏（行高亮 / focus / diff / 行号）使用 **Shiki**（`vitesse-light` / `vitesse-dark`）。
+- 带 Plume 特性的代码围栏（行高亮 / focus / diff / 行号）在实时预览与阅读模式中共用一套按需加载的 **Shiki** 管线（`vitesse-light` / `vitesse-dark`）。
 - 行内 `<Badge type="tip" text="…">` 徽章（对齐 VuePress）。
 - 笔记 frontmatter：`link-icons` / `link-icon-size` 可为外链自动加网站 favicon。
 - 编辑时 **软刷新** Plume 块（含 Live Preview 已注册的 leading section）；命令面板可强制整页重建预览。
@@ -36,6 +36,8 @@
 
 ## 安装
 
+仅支持桌面版 Obsidian（`isDesktopOnly`：二维码通过 Electron `require` 加载同目录的 `qrcode-lib.cjs`）。
+
 ### 社区插件（推荐）
 
 1. 在 Obsidian 中打开 **设置 → 社区插件 → 浏览**，搜索 **Theme Plume**。
@@ -43,7 +45,7 @@
 
 若尚未出现在社区目录，可先用下方手动安装或 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 从 GitHub 安装。
 
-**提交社区插件**（维护者）：登录 [community.obsidian.md](https://community.obsidian.md) → **Plugins → New plugin** → 填写 `https://github.com/Eason596/obsidian-theme-plume`。首次提交前需已有与 `manifest.json` 中 `version` 一致的 [GitHub Release](https://github.com/Eason596/obsidian-theme-plume/releases)（含 `main.js`、`manifest.json`、`styles.css`）。
+**提交社区插件**（维护者）：登录 [community.obsidian.md](https://community.obsidian.md) → **Plugins → New plugin** → 填写 `https://github.com/Eason596/obsidian-theme-plume`。首次提交前需已有与 `manifest.json` 中 `version` 一致的 [GitHub Release](https://github.com/Eason596/obsidian-theme-plume/releases)（含 `main.js`、`manifest.json`、`styles.css`、`qrcode-lib.cjs`）。
 
 ### 手动安装（开发构建）
 
@@ -61,13 +63,14 @@ npm run build
   manifest.json
   main.js
   styles.css
+  qrcode-lib.cjs
 ```
 
-`main.js` 由 `npm run build` 生成，未提交到 Git。
+`main.js` 与 `qrcode-lib.cjs` 由 `npm run build` 生成，未提交到 Git。
 
 在 **设置 → 社区插件** 中启用 **Theme Plume**。
 
-> **升级提示**：插件 ID 现为 `theme-plume`。若曾安装 `obsidian-plume` 或 `vuepress-file-tree`，请删除旧插件目录后再安装，避免重复加载。
+> **升级提示**：插件 ID 现为 `theme-plume`。若曾安装 `obsidian-plume` 或 `vuepress-file-tree`，请删除旧插件目录后再安装，避免重复加载。升级到 `.cjs` 分片后请删除残留的 `qrcode-lib.js`。
 
 ## 网络使用说明
 
@@ -260,7 +263,7 @@ npm run build:demo
 
 ## 发布新版本
 
-维护者推送 semver 标签后，GitHub Actions 会自动构建并创建 Release（附件含 `main.js`、`manifest.json`、`styles.css`）：
+维护者推送 semver 标签后，GitHub Actions 会自动构建并创建 Release（附件含 `main.js`、`manifest.json`、`styles.css`、`qrcode-lib.cjs`）：
 
 ```bash
 # 1. 更新 manifest.json 与 package.json 中的 version

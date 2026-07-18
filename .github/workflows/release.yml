@@ -33,6 +33,7 @@ jobs:
       - name: Build plugin
         run: |
           npm ci
+          npm test
           npm run build
 
       - name: Attest release assets
@@ -41,6 +42,7 @@ jobs:
           subject-path: |
             main.js
             styles.css
+            qrcode-lib.cjs
 
       - name: Create release
         env:
@@ -50,4 +52,4 @@ jobs:
           gh release create "$tag" \
             --title="$tag" \
             --generate-notes \
-            main.js manifest.json styles.css
+            main.js manifest.json styles.css qrcode-lib.cjs

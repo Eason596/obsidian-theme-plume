@@ -31,11 +31,11 @@ describe("code-highlight (Shiki)", () => {
     expect(joined).toContain("template");
   }, 30_000);
 
-  it("lists bundled Shiki themes for settings", async () => {
+  it("lists curated Shiki themes for settings", async () => {
     const { listBundledShikiThemes, configureShikiThemes, highlightSourceLines } =
       await import("./code-highlight");
     const themes = listBundledShikiThemes();
-    expect(themes.length).toBeGreaterThan(50);
+    expect(themes.length).toBeGreaterThanOrEqual(10);
     expect(themes).toContain("vitesse-light");
     expect(themes).toContain("nord");
 

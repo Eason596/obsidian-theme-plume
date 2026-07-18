@@ -1,36 +1,41 @@
 import { marked } from "marked";
-import { createHighlighter, type Highlighter } from "shiki";
-import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import { createHighlighterCore } from "@shikijs/core";
+import { createJavaScriptRegexEngine } from "@shikijs/engine-javascript";
+import type { HighlighterCore, LanguageInput } from "@shikijs/types";
 
 marked.setOptions({
   gfm: true,
   breaks: true
 });
 
-let highlighterPromise: Promise<Highlighter> | null = null;
+let highlighterPromise: Promise<HighlighterCore> | null = null;
 let rendererReady = false;
 
-async function getDemoHighlighter(): Promise<Highlighter> {
+export async function getDemoHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      themes: ["vitesse-light", "vitesse-dark"],
-      langs: [
-        "javascript",
-        "typescript",
-        "vue",
-        "json",
-        "css",
-        "html",
-        "bash",
-        "shell",
-        "markdown",
-        "yaml",
-        "python",
-        "http",
-        "plaintext"
-      ],
-      engine: createJavaScriptRegexEngine()
-    });
+    highlighterPromise = (async () => {
+      const [vitesseLight, vitesseDark, ...languages] = await Promise.all([
+        import("@shikijs/themes/vitesse-light").then((module) => module.default),
+        import("@shikijs/themes/vitesse-dark").then((module) => module.default),
+        import("@shikijs/langs/javascript").then((module) => module.default),
+        import("@shikijs/langs/typescript").then((module) => module.default),
+        import("@shikijs/langs/vue").then((module) => module.default),
+        import("@shikijs/langs/json").then((module) => module.default),
+        import("@shikijs/langs/css").then((module) => module.default),
+        import("@shikijs/langs/html").then((module) => module.default),
+        import("@shikijs/langs/bash").then((module) => module.default),
+        import("@shikijs/langs/shell").then((module) => module.default),
+        import("@shikijs/langs/markdown").then((module) => module.default),
+        import("@shikijs/langs/yaml").then((module) => module.default),
+        import("@shikijs/langs/python").then((module) => module.default),
+        import("@shikijs/langs/http").then((module) => module.default)
+      ]);
+      return createHighlighterCore({
+        themes: [vitesseLight, vitesseDark],
+        langs: languages.flat() as LanguageInput[],
+        engine: createJavaScriptRegexEngine()
+      });
+    })();
   }
   return highlighterPromise;
 }
@@ -42,7 +47,7 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-async function ensureMarkedRenderer(): Promise<Highlighter> {
+async function ensureMarkedRenderer(): Promise<HighlighterCore> {
   const highlighter = await getDemoHighlighter();
   if (rendererReady) return highlighter;
   rendererReady = true;

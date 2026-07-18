@@ -93,7 +93,7 @@
           const isActive = btn === button;
           btn.classList.toggle("active", isActive);
           btn.setAttribute("aria-selected", isActive ? "true" : "false");
-          btn.setAttribute("aria-disabled", "false");
+          btn.removeAttribute("aria-disabled");
           btn.tabIndex = isActive ? 0 : -1;
         });
 

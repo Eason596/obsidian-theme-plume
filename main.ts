@@ -1,15 +1,18 @@
 import {
   App,
   MarkdownView,
+  MarkdownRenderChild,
   Notice,
   Plugin,
   PluginSettingTab,
   Setting,
   TFile,
   TFolder,
+  getLanguage,
   getIconIds,
   normalizePath,
   requestUrl,
+  type Component,
   type MarkdownPostProcessorContext
 } from "obsidian";
 import {
@@ -17,16 +20,33 @@ import {
   parseAllBlocks,
   parseFileTreeRawContent
 } from "./src/parser";
-import { renderFileTreeInto, processBadges, processGithubAlerts, processPlots, type BlockRenderContext } from "./src/render";
-import { processIconifyIcons, setIconifyRequestUrl } from "./src/render/iconify-online";
-import { processLinkFavicons } from "./src/render/link-favicons";
+import {
+  renderFileTreeInto,
+  refreshDecoratedCodeFences,
+  type BlockRenderContext
+} from "./src/render";
+import { enrichRenderedRoot } from "./src/render/enrichment";
+import {
+  clearIconifyCache,
+  setIconifyRequestUrl
+} from "./src/render/iconify-online";
+import { clearFaviconCache, clearFaviconRetryTimers } from "./src/render/link-favicons";
+import { configureQrcodeLoader } from "./src/render/qrcode-loader";
+import { hashString } from "./src/utils/hash";
+import { plumeInlineWidgetsExtension } from "./src/editor/inline-widgets";
+import { getSettingsMessages } from "./src/settings/i18n";
 import { PreviewPipeline } from "./src/pipeline/preview-pipeline";
-import { PreviewDocumentSync } from "./src/pipeline/preview-sync";
+import {
+  PreviewDocumentSync,
+  entersPreviewTarget,
+  type MarkdownViewState
+} from "./src/pipeline/preview-sync";
 import {
   DEFAULT_SETTINGS,
   type CodeTreeFileItem,
   type FileTreePluginSettings,
-  type ParsedBlock
+  type ParsedBlock,
+  type SettingsLanguage
 } from "./src/types";
 
 const UNSUPPORTED_CODE_TREE_FILE_TYPES = new Set([
@@ -60,37 +80,65 @@ interface CachedParse {
   blocks: ParsedBlock[];
 }
 
+interface CodeTreeDirectoryEntry {
+  file: TFile;
+  relativePath: string;
+}
+
 export default class ObsidianPlumePlugin extends Plugin {
   settings: FileTreePluginSettings = { ...DEFAULT_SETTINGS };
 
   private parseCacheByPath = new Map<string, CachedParse>();
+  /** Nested / card-body parse results keyed by content hash (not file path). */
+  private nestedParseCache = new Map<string, ParsedBlock[]>();
   private readonly previewSync = new PreviewDocumentSync();
   private contentEpochByPath = new Map<string, number>();
-  private markdownModeByPath = new Map<string, string>();
-  private flushTimer: number | null = null;
-  private flushPath: string | null = null;
+  private markdownModeByView = new WeakMap<MarkdownView, MarkdownViewState>();
+  private flushTimersByPath = new Map<string, number>();
+  private codeTreeCache = new Map<string, Promise<CodeTreeFileItem[] | null>>();
   private modeSyncTimer: number | null = null;
+  private modeSyncRetryTimer: number | null = null;
   private layoutModeScanTimer: number | null = null;
   private pipeline!: PreviewPipeline;
+  /** Last known Obsidian dark mode — ignore startup css-change storms. */
+  private lastThemeDark: boolean | null = null;
+  private cssChangeTimer: number | null = null;
+  private layoutReadyAt = 0;
+  /** One-macrotask cache for isRenderTargetCurrent leaf scans. */
+  private viewContainmentCache: Array<{ path: string; containers: HTMLElement[] }> | null = null;
 
   private static readonly MODE_SYNC_DELAY_MS = 32;
   private static readonly MODE_SYNC_RETRY_MS = 56;
   private static readonly MODE_SYNC_MAX_ATTEMPTS = 4;
   private static readonly LAYOUT_MODE_SCAN_MS = 40;
   private static readonly FLUSH_DEBOUNCE_MS = 120;
+  private static readonly MAX_PARSE_CACHE_ENTRIES = 128;
+  private static readonly MAX_NESTED_PARSE_CACHE_ENTRIES = 64;
+  private static readonly MAX_CONTENT_EPOCH_ENTRIES = 256;
+  private static readonly MAX_CODE_TREE_CACHE_ENTRIES = 32;
+  private static readonly MAX_CODE_TREE_FILES = 200;
+  private static readonly MAX_CODE_TREE_FILE_BYTES = 512 * 1024;
+  private static readonly MAX_CODE_TREE_TOTAL_BYTES = 5 * 1024 * 1024;
+  private static readonly CODE_TREE_READ_CONCURRENCY = 8;
 
   async onload(): Promise<void> {
     await this.loadSettings();
     setIconifyRequestUrl(requestUrl);
+    configureQrcodeLoader(this.app, this.manifest.dir ?? "");
+    this.registerEditorExtension(plumeInlineWidgetsExtension);
 
     this.pipeline = new PreviewPipeline({
       plugin: this,
       getDefaultIconMode: () => this.settings.defaultIconMode,
       getOrParseBlocks: (text, sourcePath) => this.getOrParseBlocks(text, sourcePath),
       getDocumentText: (sourcePath, snapshot) => this.previewSync.getLiveText(sourcePath, snapshot),
+      isRenderTargetCurrent: (rootElement, sourcePath) =>
+        this.isRenderTargetCurrent(rootElement, sourcePath),
       isDocumentDirty: (sourcePath) => this.previewSync.isDirty(sourcePath),
-      clearDocumentDirty: (sourcePath) => this.previewSync.clearDirty(sourcePath),
-      buildRenderContext: (sourcePath, ctx) => this.buildRenderContext(sourcePath, ctx)
+      clearDocumentDirty: (sourcePath, renderedText) =>
+        this.previewSync.clearDirtyIfMatches(sourcePath, renderedText),
+      buildRenderContext: (sourcePath, ctx, component) =>
+        this.buildRenderContext(sourcePath, ctx, component)
     });
 
     this.addSettingTab(new PlumeSettingTab(this.app, this));
@@ -121,25 +169,34 @@ export default class ObsidianPlumePlugin extends Plugin {
       }
     });
 
-    // Register processors before warming Shiki — first Reading-view paint must not
-    // race past an empty processor list while the highlighter module loads.
+    // Reading view and Live Preview share the same on-demand Shiki pipeline.
     this.registerMarkdownPostProcessor(async (rootElement, ctx) => {
       await this.pipeline.processSection(rootElement, ctx);
     });
 
     this.registerMarkdownPostProcessor(async (rootElement, ctx) => {
-      await processBadges(rootElement, {
+      // Leading Plume hosts enrich after async section commit — do not double-apply.
+      // Nested MarkdownRenderer roots (inside cards) still need this pass.
+      if (
+        rootElement.classList.contains("plume-has-block")
+        || rootElement.classList.contains("plume-section-absorbed")
+      ) {
+        return;
+      }
+      const belongsToCurrentSource = (): boolean => {
+        const ownerPath = rootElement.dataset.plumeSourcePath;
+        return !ownerPath || ownerPath === ctx.sourcePath;
+      };
+      if (!belongsToCurrentSource()) return;
+      const renderScope = new MarkdownRenderChild(rootElement);
+      ctx.addChild(renderScope);
+      await enrichRenderedRoot(rootElement, {
         app: this.app,
         sourcePath: ctx.sourcePath,
-        component: this,
-        postProcessorCtx: ctx
-      });
-      await processIconifyIcons(rootElement);
-      processGithubAlerts(rootElement);
-      processPlots(rootElement);
-      processLinkFavicons(rootElement, {
-        app: this.app,
-        sourcePath: ctx.sourcePath
+        component: renderScope,
+        postProcessorCtx: ctx,
+        sourceText: this.previewSync.getLiveText(ctx.sourcePath, ""),
+        isCurrent: belongsToCurrentSource
       });
     });
 
@@ -171,10 +228,8 @@ export default class ObsidianPlumePlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
         if (file instanceof TFile) {
+          this.invalidateCodeTreeCacheForPath(file.path);
           this.parseCacheByPath.delete(file.path);
-          if (file.extension === "md") {
-            this.pipeline.invalidateBlocksForFile(file.path);
-          }
         }
         if (file instanceof TFile && file.extension === "md") {
           void this.app.vault.cachedRead(file).then((text) => {
@@ -188,6 +243,33 @@ export default class ObsidianPlumePlugin extends Plugin {
     );
 
     this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        this.invalidateCodeTreeCacheForPath(file.path);
+        this.forgetPath(file.path);
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        this.invalidateCodeTreeCacheForPath(oldPath);
+        if (file instanceof TFile) {
+          this.invalidateCodeTreeCacheForPath(file.path);
+        }
+        this.forgetPath(oldPath);
+        if (file instanceof TFile) {
+          this.parseCacheByPath.delete(file.path);
+          this.pipeline.invalidateBlocksForFile(file.path);
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("create", (file) => {
+        this.invalidateCodeTreeCacheForPath(file.path);
+      })
+    );
+
+    this.registerEvent(
       this.app.workspace.on("editor-change", (editor, info) => {
         const file = info?.file ?? this.app.workspace.getActiveFile();
         if (!(file instanceof TFile) || file.extension !== "md") {
@@ -197,13 +279,14 @@ export default class ObsidianPlumePlugin extends Plugin {
         this.previewSync.markDirty(file.path, text);
         this.bumpContentEpoch(file.path);
         this.parseCacheByPath.delete(file.path);
-        this.pipeline.codeFenceTitles.reconcileWithText(file, text);
+        this.pipeline.codeFenceTitles.scheduleReconcileWithText(file, text);
         this.scheduleFlushPlumeBlocks(file.path);
       })
     );
 
     this.registerEvent(
       this.app.workspace.on("layout-change", () => {
+        this.viewContainmentCache = null;
         this.pipeline.codeFenceTitles.refreshDirtyPreviews();
         this.queueLayoutModeScan();
       })
@@ -223,10 +306,9 @@ export default class ObsidianPlumePlugin extends Plugin {
         }
         void this.app.vault.cachedRead(file).then((text) => {
           this.previewSync.setLiveText(file.path, text);
-          // Seed so the first clean mode toggle does not treat the file as "changed".
-          this.previewSync.markPreviewSynced(file.path, text);
           this.parseCacheByPath.delete(file.path);
           this.pipeline.codeFenceTitles.seedBaseline(file, text);
+          this.queueModePreviewSync();
         });
       })
     );
@@ -235,60 +317,89 @@ export default class ObsidianPlumePlugin extends Plugin {
       this.rememberPreviewScrollFromEvent(event);
     }, true);
 
-    // Warm Shiki in the background (never block processor registration above).
-    void import("./src/render/code-highlight")
-      .then(({ preloadHighlighter }) => {
-        preloadHighlighter();
-      })
-      .catch((err) => {
-        console.error("[theme-plume] Shiki preload failed", err);
-      });
-
-    // Obsidian appearance toggle changes body.theme-dark — recolor Shiki tokens
+    // Only soft-refresh on real light/dark flips (startup css-change is ignored).
     this.registerEvent(
       this.app.workspace.on("css-change", () => {
-        this.refreshOpenReadingPreviews();
+        this.onCssChange();
       })
     );
 
-    // Vault open often paints Reading view before plugins finish; re-run only if
-    // raw Plume containers are still visible (avoids always double-flashing).
     this.app.workspace.onLayoutReady(() => {
-      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-      if (!view?.file || view.getMode() !== "preview") return;
-      const root =
-        (view.previewMode as { containerEl?: HTMLElement } | undefined)?.containerEl
-        ?? view.contentEl;
-      const hasRawPlume = Array.from(root.querySelectorAll("p, div, li")).some((el) => {
-        if (!(el instanceof HTMLElement)) return false;
-        if (el.closest(".plume-has-block, .vp-code-tree, .obsidian-vuepress-file-tree")) {
-          return false;
-        }
-        return /^\s*:::/.test(el.textContent ?? "");
-      });
-      if (!hasRawPlume) return;
-      this.previewSync.markDirty(view.file.path, view.editor.getValue());
-      this.fullRerenderPreviewView(view);
+      this.layoutReadyAt = Date.now();
+      this.lastThemeDark = document.body.classList.contains("theme-dark");
     });
   }
 
-  onunload(): void {
-    if (this.flushTimer !== null) {
-      window.clearTimeout(this.flushTimer);
-      this.flushTimer = null;
+  private onCssChange(): void {
+    if (this.layoutReadyAt > 0 && Date.now() - this.layoutReadyAt < 3000) {
+      this.lastThemeDark = document.body.classList.contains("theme-dark");
+      return;
     }
+
+    const dark = document.body.classList.contains("theme-dark");
+    if (this.lastThemeDark === null) {
+      this.lastThemeDark = dark;
+      return;
+    }
+    if (this.lastThemeDark === dark) {
+      return;
+    }
+    this.lastThemeDark = dark;
+
+    if (this.cssChangeTimer !== null) {
+      window.clearTimeout(this.cssChangeTimer);
+    }
+    this.cssChangeTimer = window.setTimeout(() => {
+      this.cssChangeTimer = null;
+      // Recolor Reading view and Live Preview from the same Shiki theme.
+      for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+        const view = leaf.view;
+        if (!(view instanceof MarkdownView) || !view.file) continue;
+        this.pipeline.refreshLeadingSectionsForFile(view.file.path);
+        void refreshDecoratedCodeFences(view.contentEl);
+        if (view.previewMode.containerEl !== view.contentEl) {
+          void refreshDecoratedCodeFences(view.previewMode.containerEl);
+        }
+      }
+    }, 200);
+  }
+
+  onunload(): void {
+    if (this.cssChangeTimer !== null) {
+      window.clearTimeout(this.cssChangeTimer);
+      this.cssChangeTimer = null;
+    }
+    for (const timer of this.flushTimersByPath.values()) {
+      window.clearTimeout(timer);
+    }
+    this.flushTimersByPath.clear();
     if (this.modeSyncTimer !== null) {
       window.clearTimeout(this.modeSyncTimer);
       this.modeSyncTimer = null;
+    }
+    if (this.modeSyncRetryTimer !== null) {
+      window.clearTimeout(this.modeSyncRetryTimer);
+      this.modeSyncRetryTimer = null;
     }
     if (this.layoutModeScanTimer !== null) {
       window.clearTimeout(this.layoutModeScanTimer);
       this.layoutModeScanTimer = null;
     }
     this.parseCacheByPath.clear();
+    this.nestedParseCache.clear();
+    this.codeTreeCache.clear();
     this.contentEpochByPath.clear();
-    this.markdownModeByPath.clear();
+    this.markdownModeByView = new WeakMap<MarkdownView, MarkdownViewState>();
+    this.previewSync.clear();
+    clearIconifyCache();
+    clearFaviconCache();
+    clearFaviconRetryTimers();
     this.pipeline?.clear();
+    void import("./src/render/code-highlight")
+      .then(({ disposeHighlighter }) => disposeHighlighter())
+      .catch(() => {
+        /* highlighter module may never have loaded */
+      });
     void import("./src/render/code-fence")
       .then(({ disconnectAllFenceWatchers }) => {
         disconnectAllFenceWatchers();
@@ -300,59 +411,60 @@ export default class ObsidianPlumePlugin extends Plugin {
 
   private bumpContentEpoch(sourcePath: string): number {
     const next = (this.contentEpochByPath.get(sourcePath) ?? 0) + 1;
+    this.contentEpochByPath.delete(sourcePath);
     this.contentEpochByPath.set(sourcePath, next);
+    while (this.contentEpochByPath.size > ObsidianPlumePlugin.MAX_CONTENT_EPOCH_ENTRIES) {
+      const oldest = this.contentEpochByPath.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      this.contentEpochByPath.delete(oldest);
+    }
     return next;
   }
 
   /**
-   * Soft refresh: invalidate Plume section caches and re-run leading post-processors.
-   * Does not call previewMode.set/rerender — preserves scroll and avoids flicker.
-   * Also refreshes Live Preview leading sections (mode "source") so deep nested
-   * blocks update while editing without waiting for a full CM rewrite.
-   * Only marks preview synced when a reading-mode view was actually touched.
+   * Soft refresh Plume leading sections. When a Reading view is open and its
+   * buffer diverged, also push previewMode.set — soft flush alone cannot update
+   * plain markdown, and must not markPreviewSynced without that push.
    */
   private flushPlumeBlocks(sourcePath: string): void {
     this.parseCacheByPath.delete(sourcePath);
-    this.pipeline.invalidateBlocksForFile(sourcePath);
-    // Refresh once for the file — covers reading + LP registered leading sections.
-    this.pipeline.refreshLeadingSectionsForFile(sourcePath);
+    const live = this.previewSync.getLiveText(sourcePath, "");
 
-    let refreshedReading = false;
-    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
-      const view = leaf.view;
-      if (!(view instanceof MarkdownView) || view.file?.path !== sourcePath) {
-        continue;
+    // Reading open + stale buffer → real preview push (plain MD + Plume).
+    let pushedReading = false;
+    if (live) {
+      for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+        const view = leaf.view;
+        if (!(view instanceof MarkdownView) || view.file?.path !== sourcePath) {
+          continue;
+        }
+        if (view.getMode() !== "preview") {
+          continue;
+        }
+        if (this.previewSync.hasPreviewSourceChanged(sourcePath, live)) {
+          this.syncPreviewFromEditor(view, sourcePath, live);
+          pushedReading = true;
+        }
       }
-      if (view.getMode() !== "preview") {
-        continue;
-      }
-      PreviewDocumentSync.invalidatePreviewDom(view);
-      refreshedReading = true;
     }
 
-    // If we only edited in source/LP, keep dirty + lastSynced so entering
-    // reading mode still runs syncPreviewFromEditor (title-only changes included).
-    if (refreshedReading) {
-      const live = this.previewSync.getLiveText(sourcePath, "");
-      if (live) {
-        this.previewSync.markPreviewSynced(sourcePath, live);
-      }
-    }
+    // After previewMode.set, Obsidian rebuilds Reading sections — skip re-entering
+    // those hosts. Still soft-refresh Live Preview leading sections.
+    this.pipeline.refreshLeadingSectionsForFile(sourcePath, {
+      excludePreviewRoots: pushedReading
+    });
   }
 
   private scheduleFlushPlumeBlocks(sourcePath: string): void {
-    this.flushPath = sourcePath;
-    if (this.flushTimer !== null) {
-      window.clearTimeout(this.flushTimer);
+    const current = this.flushTimersByPath.get(sourcePath);
+    if (current !== undefined) {
+      window.clearTimeout(current);
     }
-    this.flushTimer = window.setTimeout(() => {
-      this.flushTimer = null;
-      const path = this.flushPath;
-      if (!path) {
-        return;
-      }
-      this.flushPlumeBlocks(path);
+    const timer = window.setTimeout(() => {
+      this.flushTimersByPath.delete(sourcePath);
+      this.flushPlumeBlocks(sourcePath);
     }, ObsidianPlumePlugin.FLUSH_DEBOUNCE_MS);
+    this.flushTimersByPath.set(sourcePath, timer);
   }
 
   /** Last resort: full Obsidian preview rebuild (command palette / broken state). */
@@ -401,20 +513,6 @@ export default class ObsidianPlumePlugin extends Plugin {
     }
   }
 
-  private findPreviewViewForPath(path: string): MarkdownView | undefined {
-    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
-      const view = leaf.view;
-      if (
-        view instanceof MarkdownView
-        && view.file?.path === path
-        && view.getMode() === "preview"
-      ) {
-        return view;
-      }
-    }
-    return undefined;
-  }
-
   private rememberPreviewScrollFromEvent(event: Event): void {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -452,6 +550,47 @@ export default class ObsidianPlumePlugin extends Plugin {
         return;
       }
     }
+  }
+
+  /**
+   * Obsidian may leave an old section connected while reusing its preview
+   * container for another file. DOM connectivity alone is therefore not a
+   * sufficient async-render validity check.
+   */
+  private isRenderTargetCurrent(rootElement: HTMLElement, sourcePath: string): boolean {
+    for (const entry of this.getMarkdownViewContainment()) {
+      if (!entry.containers.some((container) =>
+        container === rootElement || container.contains(rootElement))) {
+        continue;
+      }
+      return entry.path === sourcePath;
+    }
+
+    // Detached staging sections are valid. A connected section outside every
+    // current MarkdownView is a stale transition node and must not commit.
+    return !rootElement.isConnected;
+  }
+
+  /** Cache leaf→containers for one macrotask; many async checkpoints hit this. */
+  private getMarkdownViewContainment(): Array<{ path: string; containers: HTMLElement[] }> {
+    if (this.viewContainmentCache) {
+      return this.viewContainmentCache;
+    }
+    const entries: Array<{ path: string; containers: HTMLElement[] }> = [];
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView)) continue;
+      const containers = [view.previewMode?.containerEl, view.contentEl].filter(
+        (el): el is HTMLElement => !!el
+      );
+      if (containers.length === 0) continue;
+      entries.push({ path: view.file?.path ?? "", containers });
+    }
+    this.viewContainmentCache = entries;
+    window.setTimeout(() => {
+      this.viewContainmentCache = null;
+    }, 0);
+    return entries;
   }
 
   /**
@@ -498,11 +637,13 @@ export default class ObsidianPlumePlugin extends Plugin {
 
     const path = file.path;
     const mode = view.getMode();
-    const prev = this.markdownModeByPath.get(path);
+    const previous = this.markdownModeByView.get(view);
     const text = view.editor.getValue();
     this.previewSync.setLiveText(path, text);
 
-    const enteringPreview = mode === "preview" && prev !== "preview";
+    const currentState: MarkdownViewState = { mode, sourcePath: path };
+    const enteringPreview = entersPreviewTarget(previous, currentState);
+    const previewTargetChanged = previous?.sourcePath !== path;
     const contentChanged = this.previewSync.hasPreviewSourceChanged(path, text);
     const isDirty = this.previewSync.isDirty(path);
     const titlesDirty = this.pipeline.codeFenceTitles.hasPendingDirty(path);
@@ -510,14 +651,14 @@ export default class ObsidianPlumePlugin extends Plugin {
     // Do not applyScroll on mode toggles — Obsidian syncs reading ↔ source/LP itself.
     // Forcing applyScroll(0) after a late getScroll() was jumping views to the top.
 
-    this.markdownModeByPath.set(path, mode);
+    this.markdownModeByView.set(view, currentState);
 
     if (mode !== "preview") {
       return;
     }
 
     // Clean toggle (same text, no pending title patch): keep existing preview DOM.
-    if (enteringPreview && !contentChanged && !isDirty && !titlesDirty) {
+    if (enteringPreview && !previewTargetChanged && !contentChanged && !isDirty && !titlesDirty) {
       return;
     }
 
@@ -529,21 +670,33 @@ export default class ObsidianPlumePlugin extends Plugin {
     this.bumpContentEpoch(path);
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        const freshView = this.findPreviewViewForPath(path);
-        if (!freshView) {
+        if (view.file?.path !== path || view.getMode() !== "preview") {
+          return;
+        }
+
+        // In-place file switch while already reading: Obsidian replaces preview DOM.
+        // Calling previewMode.set again causes a visible flash — only sync when dirty.
+        if (enteringPreview && previewTargetChanged) {
+          if (contentChanged || isDirty || titlesDirty) {
+            this.syncPreviewFromEditor(view, path, text);
+          } else {
+            this.previewSync.markPreviewSynced(path, text);
+          }
+          this.pipeline.codeFenceTitles.clearPendingDirty(path);
           return;
         }
 
         if (enteringPreview && (contentChanged || isDirty || titlesDirty)) {
-          // Editor/title changed while in LP/source — push text once into reading preview.
-          this.syncPreviewFromEditor(freshView, path, text);
+          // Entering reading from source/LP with pending edits.
+          this.syncPreviewFromEditor(view, path, text);
           this.pipeline.codeFenceTitles.clearPendingDirty(path);
           return;
         }
 
         if (titlesDirty && !enteringPreview) {
+          // refreshDirtyPreviews clears dirty only when title bars exist;
+          // do not force-clear — missing bars still need a later flush/set.
           this.pipeline.codeFenceTitles.refreshDirtyPreviews();
-          this.pipeline.codeFenceTitles.clearPendingDirty(path);
         }
 
         // Staying in reading mode with dirty buffer (e.g. external file modify).
@@ -565,14 +718,27 @@ export default class ObsidianPlumePlugin extends Plugin {
       return;
     }
 
-    window.setTimeout(
-      () => this.applyPreviewSyncAfterModeChange(attempt + 1),
-      ObsidianPlumePlugin.MODE_SYNC_RETRY_MS
-    );
+    if (this.modeSyncRetryTimer !== null) {
+      window.clearTimeout(this.modeSyncRetryTimer);
+    }
+    this.modeSyncRetryTimer = window.setTimeout(() => {
+      this.modeSyncRetryTimer = null;
+      this.applyPreviewSyncAfterModeChange(attempt + 1);
+    }, ObsidianPlumePlugin.MODE_SYNC_RETRY_MS);
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const stored = (await this.loadData()) as Partial<FileTreePluginSettings> | null;
+    const storedLanguage = stored?.settingsLanguage;
+    const detectedLanguage: SettingsLanguage = getLanguage().toLowerCase().startsWith("zh")
+      ? "zh-CN"
+      : "en";
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored ?? {}, {
+      settingsLanguage:
+        storedLanguage === "zh-CN" || storedLanguage === "en"
+          ? storedLanguage
+          : detectedLanguage
+    });
     await this.applyShikiThemeSettings();
     // Persist fallbacks if stored theme ids are invalid / missing
     const { isBundledShikiTheme } = await import("./src/render/code-highlight");
@@ -592,8 +758,22 @@ export default class ObsidianPlumePlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
+    this.nestedParseCache.clear();
+    this.parseCacheByPath.clear();
     await this.applyShikiThemeSettings();
     await this.saveData(this.settings);
+  }
+
+  /** Soft-refresh Plume hosts after settings that affect rendered icons/blocks. */
+  softRefreshOpenMarkdownFiles(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView) || !view.file || view.file.extension !== "md") {
+        continue;
+      }
+      this.pipeline.invalidateBlocksForFile(view.file.path);
+      this.pipeline.refreshLeadingSectionsForFile(view.file.path);
+    }
   }
 
   private async applyShikiThemeSettings(): Promise<void> {
@@ -605,25 +785,28 @@ export default class ObsidianPlumePlugin extends Plugin {
     }
   }
 
-  /** Re-render open Reading views so Shiki theme changes take effect. */
+  /** Recolor Reading view and Live Preview after a Shiki theme setting change. */
   refreshOpenReadingPreviews(): void {
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       const view = leaf.view;
       if (!(view instanceof MarkdownView) || !view.file) continue;
-      if (view.getMode() !== "preview") continue;
-      this.previewSync.markDirty(view.file.path, view.editor.getValue());
-      this.fullRerenderPreviewView(view);
+      this.pipeline.refreshLeadingSectionsForFile(view.file.path);
+      void refreshDecoratedCodeFences(view.contentEl);
+      if (view.previewMode.containerEl !== view.contentEl) {
+        void refreshDecoratedCodeFences(view.previewMode.containerEl);
+      }
     }
   }
 
   private buildRenderContext(
     sourcePath: string,
-    ctx: MarkdownPostProcessorContext
+    ctx: MarkdownPostProcessorContext,
+    component: Component
   ): BlockRenderContext {
     return {
       app: this.app,
       sourcePath,
-      component: this,
+      component,
       postProcessorCtx: ctx,
       defaultIconMode: this.settings.defaultIconMode,
       settings: {
@@ -634,6 +817,7 @@ export default class ObsidianPlumePlugin extends Plugin {
         debugRender: this.settings.debugRender
       },
       contentEpoch: this.contentEpochByPath.get(sourcePath) ?? 0,
+      parseBlocks: (markdown) => this.getOrParseNestedBlocks(markdown),
       resolveCodeTreeEmbed: (sp, dirPath) => this.collectEmbedFiles(sp, dirPath)
     };
   }
@@ -641,12 +825,53 @@ export default class ObsidianPlumePlugin extends Plugin {
   private getOrParseBlocks(text: string, sourcePath: string): ParsedBlock[] {
     const cached = this.parseCacheByPath.get(sourcePath);
     if (cached && cached.text === text) {
+      this.parseCacheByPath.delete(sourcePath);
+      this.parseCacheByPath.set(sourcePath, cached);
       return cached.blocks;
     }
 
     const blocks = parseAllBlocks(text, this.settings.defaultIconMode);
     this.parseCacheByPath.set(sourcePath, { text, blocks });
+    while (this.parseCacheByPath.size > ObsidianPlumePlugin.MAX_PARSE_CACHE_ENTRIES) {
+      const oldest = this.parseCacheByPath.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      this.parseCacheByPath.delete(oldest);
+    }
     return blocks;
+  }
+
+  /** Content-keyed parse cache for nested card/tab/collapse bodies. */
+  private getOrParseNestedBlocks(text: string): ParsedBlock[] {
+    const key = `${this.settings.defaultIconMode}:${text.length}:${hashString(text)}`;
+    const hit = this.nestedParseCache.get(key);
+    if (hit) {
+      this.nestedParseCache.delete(key);
+      this.nestedParseCache.set(key, hit);
+      return hit;
+    }
+    const blocks = parseAllBlocks(text, this.settings.defaultIconMode);
+    this.nestedParseCache.set(key, blocks);
+    while (this.nestedParseCache.size > ObsidianPlumePlugin.MAX_NESTED_PARSE_CACHE_ENTRIES) {
+      const oldest = this.nestedParseCache.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      this.nestedParseCache.delete(oldest);
+    }
+    return blocks;
+  }
+
+  /** Drop code-tree directory caches that contain or are under this path. */
+  private invalidateCodeTreeCacheForPath(filePath: string): void {
+    const normalized = filePath.replace(/\\/g, "/");
+    for (const key of Array.from(this.codeTreeCache.keys())) {
+      const dir = key.replace(/\\/g, "/");
+      if (
+        normalized === dir
+        || normalized.startsWith(`${dir}/`)
+        || dir.startsWith(`${normalized}/`)
+      ) {
+        this.codeTreeCache.delete(key);
+      }
+    }
   }
 
   private async collectEmbedFiles(
@@ -658,35 +883,81 @@ export default class ObsidianPlumePlugin extends Plugin {
       return null;
     }
 
+    const cached = this.codeTreeCache.get(resolvedDirPath);
+    if (cached) {
+      this.codeTreeCache.delete(resolvedDirPath);
+      this.codeTreeCache.set(resolvedDirPath, cached);
+      return cached;
+    }
+
+    const pending = this.loadCodeTreeDirectory(resolvedDirPath);
+    this.codeTreeCache.set(resolvedDirPath, pending);
+    while (this.codeTreeCache.size > ObsidianPlumePlugin.MAX_CODE_TREE_CACHE_ENTRIES) {
+      const oldest = this.codeTreeCache.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      this.codeTreeCache.delete(oldest);
+    }
+    try {
+      return await pending;
+    } catch (error) {
+      if (this.codeTreeCache.get(resolvedDirPath) === pending) {
+        this.codeTreeCache.delete(resolvedDirPath);
+      }
+      throw error;
+    }
+  }
+
+  private async loadCodeTreeDirectory(
+    resolvedDirPath: string
+  ): Promise<CodeTreeFileItem[] | null> {
     const folder = this.resolveCodeTreeEmbedFolder(resolvedDirPath);
     if (!(folder instanceof TFolder)) {
       return null;
     }
 
-    const entries = this.collectCodeTreeDirectoryItems(folder);
+    const entries = this.collectCodeTreeDirectoryItems(folder)
+      .filter((entry) => {
+        const extension = this.getCodeTreeFileExtension(entry.relativePath);
+        return !UNSUPPORTED_CODE_TREE_FILE_TYPES.has(extension)
+          && entry.file.stat.size <= ObsidianPlumePlugin.MAX_CODE_TREE_FILE_BYTES;
+      })
+      .slice(0, ObsidianPlumePlugin.MAX_CODE_TREE_FILES);
     if (entries.length === 0) {
       return null;
     }
 
-    const files: CodeTreeFileItem[] = [];
+    let totalBytes = 0;
+    const selected: CodeTreeDirectoryEntry[] = [];
     for (const entry of entries) {
-      const extension = this.getCodeTreeFileExtension(entry.relativePath);
-      if (UNSUPPORTED_CODE_TREE_FILE_TYPES.has(extension)) {
+      if (totalBytes + entry.file.stat.size > ObsidianPlumePlugin.MAX_CODE_TREE_TOTAL_BYTES) {
         continue;
       }
-
-      try {
-        const content = await this.app.vault.cachedRead(entry.file);
-        files.push({
-          filepath: entry.relativePath,
-          language: extension || "txt",
-          content
-        });
-      } catch {
-        continue;
-      }
+      totalBytes += entry.file.stat.size;
+      selected.push(entry);
     }
 
+    const results = new Array<CodeTreeFileItem | null>(selected.length).fill(null);
+    let cursor = 0;
+    const worker = async (): Promise<void> => {
+      while (cursor < selected.length) {
+        const index = cursor++;
+        const entry = selected[index];
+        try {
+          const content = await this.app.vault.cachedRead(entry.file);
+          const extension = this.getCodeTreeFileExtension(entry.relativePath);
+          results[index] = {
+            filepath: entry.relativePath,
+            language: extension || "txt",
+            content
+          };
+        } catch {
+          results[index] = null;
+        }
+      }
+    };
+    const concurrency = Math.min(ObsidianPlumePlugin.CODE_TREE_READ_CONCURRENCY, selected.length);
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    const files = results.filter((item): item is CodeTreeFileItem => item !== null);
     return files.length > 0 ? files : null;
   }
 
@@ -762,7 +1033,7 @@ export default class ObsidianPlumePlugin extends Plugin {
 
   private collectCodeTreeDirectoryItems(
     folder: TFolder
-  ): { file: TFile; relativePath: string }[] {
+  ): CodeTreeDirectoryEntry[] {
     const root = normalizePath(folder.path);
     const items: { file: TFile; relativePath: string }[] = [];
 
@@ -806,6 +1077,18 @@ export default class ObsidianPlumePlugin extends Plugin {
 
     return items;
   }
+
+  private forgetPath(sourcePath: string): void {
+    const timer = this.flushTimersByPath.get(sourcePath);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      this.flushTimersByPath.delete(sourcePath);
+    }
+    this.parseCacheByPath.delete(sourcePath);
+    this.contentEpochByPath.delete(sourcePath);
+    this.previewSync.deleteLive(sourcePath);
+    this.pipeline.forgetFile(sourcePath);
+  }
 }
 
 class PlumeSettingTab extends PluginSettingTab {
@@ -819,29 +1102,45 @@ class PlumeSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+    const t = getSettingsMessages(this.plugin.settings.settingsLanguage);
 
-    new Setting(containerEl).setName("Rendering").setHeading();
+    new Setting(containerEl)
+      .setName(t.settingsLanguage)
+      .setDesc(t.settingsLanguageDesc)
+      .addDropdown((dropdown) => {
+        dropdown.addOption("zh-CN", t.chinese);
+        dropdown.addOption("en", t.english);
+        dropdown.setValue(this.plugin.settings.settingsLanguage);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.settingsLanguage = value as SettingsLanguage;
+          await this.plugin.saveSettings();
+          this.display();
+        });
+      });
+
+    new Setting(containerEl).setName(t.rendering).setHeading();
     containerEl.createEl("p", {
-      text: "VuePress Theme Plume markdown extensions for Obsidian reading view."
+      text: t.renderingDesc
     });
 
     new Setting(containerEl)
-      .setName("Default file-tree icon mode")
-      .setDesc('Used when ::: file-tree does not set icon="simple" or icon="colored".')
+      .setName(t.defaultIconMode)
+      .setDesc(t.defaultIconModeDesc)
       .addDropdown((dropdown) => {
-        dropdown.addOption("colored", "Colored");
-        dropdown.addOption("simple", "Simple");
+        dropdown.addOption("colored", t.colored);
+        dropdown.addOption("simple", t.simple);
         dropdown.setValue(this.plugin.settings.defaultIconMode);
         dropdown.onChange(async (value) => {
           this.plugin.settings.defaultIconMode =
             value as FileTreePluginSettings["defaultIconMode"];
           await this.plugin.saveSettings();
+          this.plugin.softRefreshOpenMarkdownFiles();
         });
       });
 
     new Setting(containerEl)
-      .setName("Remember tab selection")
-      .setDesc("Persist active tab for ::: tabs#id and ::: code-tabs#id across sessions (localStorage).")
+      .setName(t.rememberTabs)
+      .setDesc(t.rememberTabsDesc)
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.persistTabSelection);
         toggle.onChange(async (value) => {
@@ -851,8 +1150,8 @@ class PlumeSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Lazy collapse bodies")
-      .setDesc("Defer rendering collapse panel content until the panel is opened.")
+      .setName(t.lazyCollapse)
+      .setDesc(t.lazyCollapseDesc)
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.collapseLazyBodies);
         toggle.onChange(async (value) => {
@@ -862,10 +1161,8 @@ class PlumeSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Lazy tab panels")
-      .setDesc(
-        "Render only the active ::: tabs / ::: code-tabs panel; others load when selected. The active panel always renders before the block is shown."
-      )
+      .setName(t.lazyTabs)
+      .setDesc(t.lazyTabsDesc)
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.tabsLazyPanels);
         toggle.onChange(async (value) => {
@@ -875,8 +1172,8 @@ class PlumeSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Debug render errors")
-      .setDesc("Show a short error hint in preview when a Plume block fails to render.")
+      .setName(t.debugRender)
+      .setDesc(t.debugRenderDesc)
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.debugRender);
         toggle.onChange(async (value) => {
@@ -885,13 +1182,13 @@ class PlumeSettingTab extends PluginSettingTab {
         });
       });
 
-    new Setting(containerEl).setName("Code highlighting (Shiki)").setHeading();
+    new Setting(containerEl).setName(t.codeHighlighting).setHeading();
     containerEl.createEl("p", {
-      text: "Themes follow Obsidian light/dark appearance. Default matches VuePress Theme Plume (vitesse)."
+      text: t.codeHighlightingDesc
     });
 
     const shikiHost = containerEl.createDiv({ cls: "plume-shiki-theme-settings" });
-    shikiHost.createEl("p", { text: "Loading theme list…" });
+    shikiHost.createEl("p", { text: t.loadingThemes });
     void this.mountShikiThemeSettings(shikiHost);
   }
 
@@ -899,11 +1196,13 @@ class PlumeSettingTab extends PluginSettingTab {
     try {
       const { listBundledShikiThemes } = await import("./src/render/code-highlight");
       const themeOptions = listBundledShikiThemes();
+      if (!host.isConnected) return;
+      const t = getSettingsMessages(this.plugin.settings.settingsLanguage);
       host.empty();
 
       new Setting(host)
-        .setName("Light theme")
-        .setDesc("Used when Obsidian is in light mode.")
+        .setName(t.lightTheme)
+        .setDesc(t.lightThemeDesc)
         .addDropdown((dropdown) => {
           for (const id of themeOptions) {
             dropdown.addOption(id, id);
@@ -918,8 +1217,8 @@ class PlumeSettingTab extends PluginSettingTab {
         });
 
       new Setting(host)
-        .setName("Dark theme")
-        .setDesc("Used when Obsidian is in dark mode.")
+        .setName(t.darkTheme)
+        .setDesc(t.darkThemeDesc)
         .addDropdown((dropdown) => {
           for (const id of themeOptions) {
             dropdown.addOption(id, id);
@@ -934,8 +1233,10 @@ class PlumeSettingTab extends PluginSettingTab {
         });
     } catch (err) {
       console.error("[theme-plume] failed to load Shiki theme list", err);
+      if (!host.isConnected) return;
+      const t = getSettingsMessages(this.plugin.settings.settingsLanguage);
       host.empty();
-      host.createEl("p", { text: "Failed to load Shiki theme list. See console." });
+      host.createEl("p", { text: t.themeLoadFailed });
     }
   }
 }

@@ -2,7 +2,28 @@
 
 > [English](./CHANGELOG.md) | **中文**
 
-## 未发布
+## 1.2.1
+
+### 变更
+
+- 仅桌面版（`isDesktopOnly`）：二维码拆成同目录 `qrcode-lib.cjs`（Electron `require` 加载），不再打进 `main.js`。
+- 共用 `enrichRenderedRoot`（badges / Iconify / alerts / plots / favicons），避免 pipeline 与全局后处理器重复 enrichment。
+
+### 修复
+
+- 软刷新按 `blockKey` / sentinel 跳过未变的 Plume 段，不再因文档 dirty 强制拆掉 `card-masonry`。
+- 软刷新不再在未 `previewMode.set` 时标记 Reading 已同步；真正 set 后跳过 Reading leading 再刷。
+- 过期快照比较前统一换行符，避免 Windows 下 `\r\n` 导致 `::: card` 等容器被跳过。
+- `processBadges` 不再整段重渲含 `:::` 的 section（卡片内 Badge/Iconify 会与 pipeline 竞态，留下原始 `:::`）。
+- badges / Iconify / favicons 只 enrichment 一次：pipeline 负责 `.plume-has-block`，全局后处理器跳过。
+- 外链图标：用 Obsidian `requestUrl` 拉成 data URL（预览里远程 `<img>` 常被拦截）；站点 → Yandex → Google，域名缓存 + 并发上限；优先读笔记正文 frontmatter。
+- 仅当 live 缓冲仍等于本次渲染文本时才清 dirty，避免快打字竞态。
+- 主题刷新装饰围栏时优先用 `.line`；WeakMap 丢失时不再用扁平 `textContent` 压成一行。
+- 尚无 title bar 时保留 title dirty；Release 附带 `qrcode-lib.cjs`。
+- Fence soft-skip / 观察者收敛 / scan 缓存 / section 级 feature 匹配 / 高度解锁辅助。
+- Shiki 改为按需加载受支持的语法与精选主题，实时预览和阅读模式共用同一套配色管线；生产版 `main.js` 启用压缩。
+- 渲染段被替换时会释放 Tab 同步监听、瀑布流观察器、Markdown 渲染子组件和代码围栏观察器。
+- 卡片和嵌入拒绝活动内容协议，媒体 iframe 增加沙箱，并清洗远程 Iconify SVG。
 
 ## 1.2.0
 

@@ -16,6 +16,13 @@ import {
 export const BLOCK_PLACEHOLDER_CLASS = "vp-block-placeholder";
 export const BLOCK_PLACEHOLDER_ATTR = "data-vp-block-id";
 
+export function parseBlocksForContext(
+  markdown: string,
+  ctx: BlockRenderContext
+): ParsedBlock[] {
+  return ctx.parseBlocks?.(markdown) ?? parseAllBlocks(markdown, ctx.defaultIconMode);
+}
+
 export function contentIsOnlyBlocksAndBlankLines(
   content: string,
   blocks: ParsedBlock[]
@@ -103,11 +110,11 @@ export async function renderNestedMarkdownContent(
     content = dedentStepBody(content);
   }
 
-  const blocks = parseAllBlocks(content, ctx.defaultIconMode);
+  const blocks = parseBlocksForContext(content, ctx);
   if (blocks.length === 1) {
     await invokeBlockRenderer(container, blocks[0], ctx);
     pruneEmptyMarkdownNodes(container);
-    await decorateSubtreeCodeFences(container, content, ctx.defaultIconMode);
+    await decorateSubtreeCodeFences(container, content, ctx.defaultIconMode, ctx.component);
     return;
   }
   if (blocks.length > 0 && contentIsOnlyBlocksAndBlankLines(content, blocks)) {
@@ -129,13 +136,13 @@ export async function renderInnerMarkdown(
     return;
   }
 
-  const blocks = parseAllBlocks(source, ctx.defaultIconMode);
+  const blocks = parseBlocksForContext(source, ctx);
 
   if (blocks.length === 0) {
     await renderMarkdownInto(container, markdown, ctx);
     const fences = scanCodeFences(markdown);
     decorateCodeBlockTitles(container, fences, ctx.defaultIconMode);
-    await decorateCodeBlockFeatures(container, fences);
+    await decorateCodeBlockFeatures(container, fences, ctx.component);
     pruneEmptyMarkdownNodes(container);
     return;
   }
@@ -178,7 +185,7 @@ export async function renderInnerMarkdown(
   {
     const fences = scanCodeFences(renderedMarkdown);
     decorateCodeBlockTitles(container, fences, ctx.defaultIconMode);
-    await decorateCodeBlockFeatures(container, fences);
+    await decorateCodeBlockFeatures(container, fences, ctx.component);
   }
 
   const placeholders = Array.from(
@@ -198,7 +205,7 @@ export async function renderInnerMarkdown(
 
     try {
       await invokeBlockRenderer(node, block, ctx);
-      await decorateSubtreeCodeFences(node, block.rawContent, ctx.defaultIconMode);
+      await decorateSubtreeCodeFences(node, block.rawContent, ctx.defaultIconMode, ctx.component);
     } catch (err) {
       console.error("[theme-plume] block render failed", err);
       if (ctx.settings?.debugRender) {

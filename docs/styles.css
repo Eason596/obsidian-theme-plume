@@ -562,7 +562,7 @@
   scrollbar-width: thin;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab {
+.obsidian-vuepress-tabs .vp-tab-nav {
   position: relative;
   display: inline-flex;
   flex: 0 0 auto;
@@ -584,7 +584,7 @@
   transition: color 150ms ease;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab::after {
+.obsidian-vuepress-tabs .vp-tab-nav::after {
   position: absolute;
   right: 8px;
   bottom: -1px;
@@ -597,12 +597,12 @@
   transition: background-color 150ms ease;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab:hover {
+.obsidian-vuepress-tabs .vp-tab-nav:hover {
   color: var(--vp-tab-text-hover);
   background-color: transparent;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab.active {
+.obsidian-vuepress-tabs .vp-tab-nav.active {
   color: var(--vp-tab-text-active);
   background-color: transparent;
   font-weight: 500;
@@ -610,36 +610,41 @@
   z-index: 2;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab.active::after {
+.obsidian-vuepress-tabs .vp-tab-nav.active::after {
   background-color: var(--vp-tab-bar);
   height: 2px;
   box-shadow: none;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-body {
-  padding: 16px;
-  background-color: var(--background-primary);
-}
-
-.obsidian-vuepress-tabs .vp-tabs-panel {
+.obsidian-vuepress-tabs .vp-tab {
   display: none !important;
   height: 0 !important;
   min-height: 0 !important;
   overflow: hidden !important;
+  padding: 16px;
+  background-color: var(--background-primary);
 }
 
-.obsidian-vuepress-tabs .vp-tabs-panel.active {
+.obsidian-vuepress-tabs .vp-tab.active {
   display: block !important;
   height: auto !important;
   overflow: visible !important;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-panel > :first-child {
+.obsidian-vuepress-tabs .vp-tab > :first-child {
   margin-top: 0;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-panel > :last-child {
+.obsidian-vuepress-tabs .vp-tab > :last-child {
   margin-bottom: 0;
+}
+
+.obsidian-vuepress-tabs .vp-tab-nav:focus-visible,
+.obsidian-vuepress-code-tabs .vp-code-tab-nav:focus-visible {
+  z-index: 3;
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -3px;
+  border-radius: 4px;
 }
 
 .vp-tabs-hidden {
@@ -2617,7 +2622,7 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
     white-space: nowrap;
   }
 
-  .obsidian-vuepress-tabs .vp-tabs-tab {
+  .obsidian-vuepress-tabs .vp-tab-nav {
     flex: 0 0 auto;
   }
 }

@@ -1,8 +1,17 @@
-import { App, MarkdownView, TFile, setIcon } from "obsidian";
+import { App, MarkdownView, TFile, setIcon, type Component } from "obsidian";
 import { resolveNodeIcon } from "../icons";
-import { scanCodeFences, decorateCodeBlockTitles, decorateCodeBlockFeatures } from "../render";
+import {
+  scanCodeFences,
+  scanCodeFenceTitles,
+  decorateCodeBlockTitles,
+  decorateCodeBlockFeatures,
+  sectionNeedsFenceDecorate
+} from "../render";
 import type { FileTreeIconMode } from "../types";
 import { prepareIconifyIconElement, processIconifyIcons } from "../render/iconify-online";
+
+const RECONCILE_DEBOUNCE_MS = 80;
+const MAX_TITLE_SIG_ENTRIES = 128;
 
 /**
  * Obsidian treats fenced-code info strings (e.g. title="foo") as cosmetic and
@@ -12,6 +21,7 @@ import { prepareIconifyIconElement, processIconifyIcons } from "../render/iconif
 export class CodeFenceTitleService {
   private lastTitleSig = new Map<string, string>();
   private dirtyPreviewFiles = new Set<string>();
+  private reconcileTimers = new Map<string, number>();
 
   constructor(
     private readonly app: App,
@@ -21,7 +31,7 @@ export class CodeFenceTitleService {
   seedBaseline(file: TFile, text: string): void {
     const sig = this.buildTitleSignature(text);
     if (!this.lastTitleSig.has(file.path)) {
-      this.lastTitleSig.set(file.path, sig);
+      this.rememberTitleSig(file.path, sig);
     }
   }
 
@@ -33,28 +43,53 @@ export class CodeFenceTitleService {
     this.dirtyPreviewFiles.delete(sourcePath);
   }
 
+  forgetFile(sourcePath: string): void {
+    const timer = this.reconcileTimers.get(sourcePath);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      this.reconcileTimers.delete(sourcePath);
+    }
+    this.lastTitleSig.delete(sourcePath);
+    this.dirtyPreviewFiles.delete(sourcePath);
+  }
+
+  /** Debounced title reconcile for high-frequency editor-change. */
+  scheduleReconcileWithText(file: TFile, text: string): void {
+    const prev = this.reconcileTimers.get(file.path);
+    if (prev !== undefined) {
+      window.clearTimeout(prev);
+    }
+    const id = window.setTimeout(() => {
+      this.reconcileTimers.delete(file.path);
+      this.reconcileWithText(file, text);
+    }, RECONCILE_DEBOUNCE_MS);
+    this.reconcileTimers.set(file.path, id);
+  }
+
   reconcileWithText(file: TFile, text: string): void {
-    const fences = scanCodeFences(text).filter((f) => !!f.title);
-    const sig = JSON.stringify(fences.map((f) => f.title ?? ""));
+    const titled = scanCodeFenceTitles(text).filter((f) => !!f.title);
+    const sig = JSON.stringify(titled.map((f) => f.title ?? ""));
     const prevSig = this.lastTitleSig.get(file.path);
     const titlesChanged = prevSig !== undefined && prevSig !== sig;
-    this.lastTitleSig.set(file.path, sig);
+    this.rememberTitleSig(file.path, sig);
 
     if (titlesChanged) {
       this.dirtyPreviewFiles.add(file.path);
     }
 
-    if (fences.length === 0) {
+    if (titled.length === 0) {
       this.stripTitleWrappersForFile(file);
       if (titlesChanged) {
-        this.refreshDirtyPreviews();
+        this.dirtyPreviewFiles.delete(file.path);
       }
       return;
     }
 
-    this.patchTitleWrappersForFile(file, fences);
-    if (titlesChanged) {
-      this.refreshDirtyPreviews();
+    const patched = this.patchTitleWrappersForFile(file, titled);
+    if (titlesChanged && patched) {
+      // Only clear dirty when labels were updated in place. If no title bars
+      // exist yet, keep dirty so mode-sync / flush can force a real rebuild.
+      this.dirtyPreviewFiles.delete(file.path);
     }
   }
 
@@ -62,7 +97,8 @@ export class CodeFenceTitleService {
     rootElement: HTMLElement,
     fileText: string,
     lineStart: number,
-    lineEnd: number
+    lineEnd: number,
+    component?: Component
   ): Promise<void> {
     const all = scanCodeFences(fileText);
     const sectionFences = all.filter(
@@ -76,8 +112,30 @@ export class CodeFenceTitleService {
       sectionFences,
       this.getDefaultIconMode()
     );
-    // Features still match against all fences (Reading view may strip newlines).
-    return decorateCodeBlockFeatures(rootElement, all.length > 0 ? all : sectionFences);
+    // Prefer section fences; fall back to full-file only when pairing fails.
+    return decorateCodeBlockFeatures(
+      rootElement,
+      sectionFences,
+      component,
+      all.length > sectionFences.length ? { fallbackFences: all } : undefined
+    );
+  }
+
+  /** Whether soft-flush skip path should re-run title/feature decoration. */
+  sectionNeedsDecorate(
+    rootElement: HTMLElement,
+    fileText: string,
+    lineStart: number,
+    lineEnd: number
+  ): boolean {
+    const all = scanCodeFences(fileText);
+    const sectionFences = all.filter(
+      (f) => f.openLine >= lineStart && f.openLine <= lineEnd
+    );
+    return sectionNeedsFenceDecorate(
+      rootElement,
+      sectionFences.length > 0 ? sectionFences : all
+    );
   }
 
   refreshDirtyPreviews(): void {
@@ -98,31 +156,41 @@ export class CodeFenceTitleService {
         // Keep dirty so entering reading mode can force previewMode.set.
         continue;
       }
-      try {
-        // Soft invalidate — avoid previewMode.rerender(true) flash on layout-change.
-        for (const el of Array.from(
-          view.previewMode.containerEl.querySelectorAll<HTMLElement>(
-            "[data-plume-block-key], .plume-has-block"
-          )
-        )) {
-          delete el.dataset.plumeBlockKey;
-          el.classList.remove("plume-has-block");
-        }
-        // In-place title patch already ran in reconcileWithText; do not clear
-        // dirty here — mode-sync / flush owns clearing after a real sync.
-      } catch (err) {
-        console.error("[theme-plume] preview invalidate failed", err);
+      // Only clear dirty when title bars exist to receive in-place patches.
+      // Zero wrappers → keep dirty for the next flush / previewMode.set.
+      const hasTitleBars = !!view.previewMode.containerEl.querySelector(
+        ".vp-code-block-title"
+      );
+      if (hasTitleBars) {
+        this.dirtyPreviewFiles.delete(path);
       }
     }
   }
 
+  private rememberTitleSig(sourcePath: string, sig: string): void {
+    if (this.lastTitleSig.has(sourcePath)) {
+      this.lastTitleSig.delete(sourcePath);
+    }
+    this.lastTitleSig.set(sourcePath, sig);
+    while (this.lastTitleSig.size > MAX_TITLE_SIG_ENTRIES) {
+      const oldest = this.lastTitleSig.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      this.lastTitleSig.delete(oldest);
+      this.dirtyPreviewFiles.delete(oldest);
+    }
+  }
+
   clear(): void {
+    for (const id of this.reconcileTimers.values()) {
+      window.clearTimeout(id);
+    }
+    this.reconcileTimers.clear();
     this.lastTitleSig.clear();
     this.dirtyPreviewFiles.clear();
   }
 
   private buildTitleSignature(text: string): string {
-    const fences = scanCodeFences(text).filter((f) => !!f.title);
+    const fences = scanCodeFenceTitles(text).filter((f) => !!f.title);
     return JSON.stringify(fences.map((f) => f.title ?? ""));
   }
 
@@ -141,19 +209,21 @@ export class CodeFenceTitleService {
     });
   }
 
+  /** @returns true when at least one title bar was present to patch. */
   private patchTitleWrappersForFile(
     file: TFile,
-    fences: ReturnType<typeof scanCodeFences>
-  ): void {
+    titled: Array<{ title?: string }>
+  ): boolean {
+    let patchedAny = false;
     this.forEachPreviewOfFile(file, (preview) => {
       const wrappers = Array.from(
         preview.querySelectorAll<HTMLElement>(".vp-code-block-title")
       );
       // Match by order among titled fences only; allow extra untitled code blocks.
-      const titled = fences.filter((f) => !!f.title);
       if (wrappers.length === 0 || titled.length === 0) {
         return;
       }
+      patchedAny = true;
       const n = Math.min(wrappers.length, titled.length);
       for (let i = 0; i < n; i += 1) {
         const wrapper = wrappers[i];
@@ -185,6 +255,7 @@ export class CodeFenceTitleService {
         label.appendChild(document.createTextNode(newTitle));
       }
     });
+    return patchedAny;
   }
 
   private forEachPreviewOfFile(file: TFile, fn: (preview: HTMLElement) => void): void {

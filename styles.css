@@ -562,7 +562,7 @@
   scrollbar-width: thin;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab {
+.obsidian-vuepress-tabs .vp-tab-nav {
   position: relative;
   display: inline-flex;
   flex: 0 0 auto;
@@ -584,7 +584,7 @@
   transition: color 150ms ease;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab::after {
+.obsidian-vuepress-tabs .vp-tab-nav::after {
   position: absolute;
   right: 8px;
   bottom: -1px;
@@ -597,12 +597,12 @@
   transition: background-color 150ms ease;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab:hover {
+.obsidian-vuepress-tabs .vp-tab-nav:hover {
   color: var(--vp-tab-text-hover);
   background-color: transparent;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab.active {
+.obsidian-vuepress-tabs .vp-tab-nav.active {
   color: var(--vp-tab-text-active);
   background-color: transparent;
   font-weight: 500;
@@ -610,36 +610,44 @@
   z-index: 2;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-tab.active::after {
+.obsidian-vuepress-tabs .vp-tab-nav.active::after {
+  right: 6px;
+  bottom: 0;
+  left: 6px;
   background-color: var(--vp-tab-bar);
-  height: 2px;
-  box-shadow: none;
+  height: 3px;
+  box-shadow: 0 0 7px color-mix(in srgb, var(--vp-tab-bar) 60%, transparent);
 }
 
-.obsidian-vuepress-tabs .vp-tabs-body {
-  padding: 16px;
-  background-color: var(--background-primary);
-}
-
-.obsidian-vuepress-tabs .vp-tabs-panel {
+.obsidian-vuepress-tabs .vp-tab {
   display: none !important;
   height: 0 !important;
   min-height: 0 !important;
   overflow: hidden !important;
+  padding: 16px;
+  background-color: var(--background-primary);
 }
 
-.obsidian-vuepress-tabs .vp-tabs-panel.active {
+.obsidian-vuepress-tabs .vp-tab.active {
   display: block !important;
   height: auto !important;
   overflow: visible !important;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-panel > :first-child {
+.obsidian-vuepress-tabs .vp-tab > :first-child {
   margin-top: 0;
 }
 
-.obsidian-vuepress-tabs .vp-tabs-panel > :last-child {
+.obsidian-vuepress-tabs .vp-tab > :last-child {
   margin-bottom: 0;
+}
+
+.obsidian-vuepress-tabs .vp-tab-nav:focus-visible,
+.obsidian-vuepress-code-tabs .vp-code-tab-nav:focus-visible {
+  z-index: 3;
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -3px;
+  border-radius: 4px;
 }
 
 .vp-tabs-hidden {
@@ -1300,6 +1308,10 @@ details.obsidian-vuepress-prompt-container .vp-custom-container-content {
 
 
 /* ===== Auto link favicons (frontmatter: link-icons / link-icon-size) ===== */
+.plume-section-render-host {
+  display: contents;
+}
+
 .vp-link-favicon {
   display: inline-block;
   width: var(--vp-link-favicon-size, 16px);
@@ -2617,7 +2629,7 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
     white-space: nowrap;
   }
 
-  .obsidian-vuepress-tabs .vp-tabs-tab {
+  .obsidian-vuepress-tabs .vp-tab-nav {
     flex: 0 0 auto;
   }
 }
@@ -2789,9 +2801,10 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   border-radius: 6px;
   background-color: var(--vp-code-tab-bg);
   overflow: hidden;
-  height: auto !important;
+  height: fit-content !important;
   min-height: 0 !important;
   max-height: none !important;
+  align-self: start;
 }
 
 /* Obsidian scroll-sync often inflates section min-height around code-tabs / npm-to */
@@ -2799,6 +2812,7 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
 .markdown-preview-section:has(.obsidian-vuepress-code-tabs) {
   height: auto !important;
   min-height: 0 !important;
+  max-height: none !important;
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tabs-nav {
@@ -2848,14 +2862,14 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
 
 .obsidian-vuepress-code-tabs .vp-code-tab-nav.active::after {
   position: absolute;
-  right: 8px;
-  bottom: -1px;
-  left: 8px;
-  height: 2px;
+  right: 6px;
+  bottom: 0;
+  left: 6px;
+  height: 3px;
   content: "";
   background-color: var(--vp-code-tab-active-bar-color);
   border-radius: 2px;
-  box-shadow: none;
+  box-shadow: 0 0 7px color-mix(in srgb, var(--vp-code-tab-active-bar-color) 60%, transparent);
 }
 
 .obsidian-vuepress-code-tabs .vp-code-tab-icon {
@@ -2887,9 +2901,13 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   padding: 0 !important;
 }
 
+.obsidian-vuepress-code-tabs .vp-code-tab[hidden] {
+  display: none !important;
+}
+
 .obsidian-vuepress-code-tabs .vp-code-tab.active {
   display: block !important;
-  height: auto !important;
+  height: fit-content !important;
   min-height: 0 !important;
   overflow: visible !important;
 }
@@ -2900,6 +2918,21 @@ details.obsidian-vuepress-prompt-container > summary > .vp-custom-container-icon
   margin: 0 !important;
   border-radius: 0 !important;
   max-height: none !important;
+  height: fit-content !important;
+  min-height: 0 !important;
+}
+
+/* Single-line npm-to / code-tabs: tighter than standalone VuePress fences */
+.obsidian-vuepress-code-tabs .vp-code-tab .vp-code-features > pre,
+.obsidian-vuepress-code-tabs .vp-code-tab > pre {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+/* Hide blank trailing lines that some render paths still leave behind */
+.obsidian-vuepress-code-tabs .vp-code-features code .line:last-child:empty,
+.obsidian-vuepress-code-tabs .vp-code-features code .line:last-child:has(> br:only-child) {
+  display: none;
 }
 
 /* Tab nav already labels the manager — hide duplicate fence title bars */

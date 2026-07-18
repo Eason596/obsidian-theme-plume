@@ -2,7 +2,7 @@
 
 > **English** | [中文](./README.zh-CN.md)
 
-Render [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume) Markdown container syntax (`::: file-tree`, `::: tabs`, `::: steps`, and more) in Obsidian **Reading view**.
+Render [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume) Markdown container syntax (`::: file-tree`, `::: tabs`, `::: steps`, and more) in Obsidian **Live Preview and Reading view**.
 
 | | |
 |---|---|
@@ -15,7 +15,7 @@ Render [VuePress Theme Plume](https://github.com/pengzhanbo/vuepress-theme-plume
 
 This repository ports [vuepress-theme-plume](https://github.com/pengzhanbo/vuepress-theme-plume) Markdown enhancements **into Obsidian** as a standalone plugin. It is **not** the upstream official project. Parsing, rendering, and styling were developed with substantial **AI-assisted tooling** (e.g. Cursor).
 
-- Covers Plume **Markdown containers and Reading-view rendering** only — not the VuePress site theme, nav, blog, search, etc.
+- Covers Plume **Markdown containers and Obsidian preview rendering** only — not the VuePress site theme, nav, blog, search, etc.
 - Upstream theme is MIT; this repo is also MIT and retains upstream copyright notices — see [NOTICE](./NOTICE).
 
 ## Features
@@ -24,7 +24,7 @@ This repository ports [vuepress-theme-plume](https://github.com/pengzhanbo/vuepr
 - Embeds: `@[code-tree]`, `@[qrcode]`, `@[pdf]`, `@[bilibili]`, `@[youtube]`.
 - Container body Markdown is rendered by **Obsidian’s built-in engine** (no bundled markdown-it).
 - Fence info `title="..."` shows a Plume-style title bar (`src/pipeline/code-fence-titles.ts`).
-- Plume fence features (line highlight / focus / diff / line numbers) use **Shiki** (`vitesse-light` / `vitesse-dark`).
+- Plume fence features (line highlight / focus / diff / line numbers) use one on-demand **Shiki** pipeline in Live Preview and Reading view (`vitesse-light` / `vitesse-dark`).
 - Inline `<Badge type="tip" text="…">` badges (VuePress-aligned).
 - Note frontmatter: `link-icons` / `link-icon-size` add site favicons before external links.
 - Soft refresh of Plume blocks while editing (including Live Preview leading sections); command palette can force a full preview rebuild.
@@ -36,6 +36,8 @@ This repository ports [vuepress-theme-plume](https://github.com/pengzhanbo/vuepr
 
 ## Install
 
+Desktop Obsidian only (`isDesktopOnly`: QR embeds load a sibling `qrcode-lib.cjs` via Electron `require`).
+
 ### Community plugins (recommended)
 
 1. In Obsidian: **Settings → Community plugins → Browse**, search **Theme Plume**.
@@ -43,7 +45,7 @@ This repository ports [vuepress-theme-plume](https://github.com/pengzhanbo/vuepr
 
 If it is not listed yet, use manual install below or [BRAT](https://github.com/TfTHacker/obsidian42-brat) from GitHub.
 
-**Submit to the community catalog** (maintainers): sign in at [community.obsidian.md](https://community.obsidian.md) → **Plugins → New plugin** → `https://github.com/Eason596/obsidian-theme-plume`. Before the first submission, publish a [GitHub Release](https://github.com/Eason596/obsidian-theme-plume/releases) whose `version` matches `manifest.json` (assets: `main.js`, `manifest.json`, `styles.css`).
+**Submit to the community catalog** (maintainers): sign in at [community.obsidian.md](https://community.obsidian.md) → **Plugins → New plugin** → `https://github.com/Eason596/obsidian-theme-plume`. Before the first submission, publish a [GitHub Release](https://github.com/Eason596/obsidian-theme-plume/releases) whose `version` matches `manifest.json` (assets: `main.js`, `manifest.json`, `styles.css`, `qrcode-lib.cjs`).
 
 ### Manual install (dev build)
 
@@ -61,13 +63,14 @@ Copy into the vault plugin folder:
   manifest.json
   main.js
   styles.css
+  qrcode-lib.cjs
 ```
 
-`main.js` is produced by `npm run build` and is not committed.
+`main.js` and `qrcode-lib.cjs` are produced by `npm run build` and are not committed.
 
 Enable **Theme Plume** under **Settings → Community plugins**.
 
-> **Upgrade note**: Plugin ID is `theme-plume`. If you previously installed `obsidian-plume` or `vuepress-file-tree`, remove the old plugin folder first to avoid double-loading.
+> **Upgrade note**: Plugin ID is `theme-plume`. If you previously installed `obsidian-plume` or `vuepress-file-tree`, remove the old plugin folder first to avoid double-loading. Also remove any leftover `qrcode-lib.js` after upgrading to the `.cjs` chunk.
 
 ## Network usage
 
@@ -260,7 +263,7 @@ Later, pushes that change `examples/plume-components.md` or styles rebuild autom
 
 ## Release a new version
 
-After maintainers push a semver tag, GitHub Actions builds and creates a Release (`main.js`, `manifest.json`, `styles.css`):
+After maintainers push a semver tag, GitHub Actions builds and creates a Release (`main.js`, `manifest.json`, `styles.css`, `qrcode-lib.cjs`):
 
 ```bash
 # 1. Bump version in manifest.json and package.json

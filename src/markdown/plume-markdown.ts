@@ -19,17 +19,40 @@ function createRenderToken(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const activeMarkdownChildren = new WeakMap<
+  HTMLElement,
+  { parent: Component; child: MarkdownRenderChild }
+>();
+
 function attachRenderChild(
+  container: HTMLElement,
   host: HTMLElement,
   ctx: PlumeMarkdownContext
 ): MarkdownRenderChild {
-  const child = new MarkdownRenderChild(host);
-  if (ctx.postProcessorCtx) {
-    ctx.postProcessorCtx.addChild(child);
-  } else {
-    ctx.component.addChild(child);
+  const previous = activeMarkdownChildren.get(container);
+  if (previous) {
+    previous.parent.removeChild(previous.child);
   }
+  const child = new MarkdownRenderChild(host);
+  ctx.component.addChild(child);
+  activeMarkdownChildren.set(container, { parent: ctx.component, child });
+  ctx.component.register(() => {
+    if (activeMarkdownChildren.get(container)?.child === child) {
+      activeMarkdownChildren.delete(container);
+    }
+  });
   return child;
+}
+
+function releaseRenderChild(
+  container: HTMLElement,
+  ctx: PlumeMarkdownContext,
+  child: MarkdownRenderChild
+): void {
+  if (activeMarkdownChildren.get(container)?.child === child) {
+    activeMarkdownChildren.delete(container);
+  }
+  ctx.component.removeChild(child);
 }
 
 /**
@@ -54,12 +77,13 @@ export async function renderPlumeMarkdown(
   host.classList.add("markdown-rendered");
   container.appendChild(host);
 
-  const child = attachRenderChild(host, ctx);
+  const child = attachRenderChild(container, host, ctx);
 
   try {
     await MarkdownRenderer.render(ctx.app, source, host, ctx.sourcePath, child);
     if (container.dataset.plumeMdToken !== token) {
       host.remove();
+      releaseRenderChild(container, ctx, child);
       return;
     }
     // Hoist even when `container` is not yet in the live preview tree (nested blocks
@@ -68,12 +92,15 @@ export async function renderPlumeMarkdown(
       container.appendChild(host.firstChild);
     }
     host.remove();
+    child.containerEl = container;
     await processIconifyIcons(container);
   } catch {
     if (container.dataset.plumeMdToken !== token) {
       host.remove();
+      releaseRenderChild(container, ctx, child);
       return;
     }
+    releaseRenderChild(container, ctx, child);
     container.empty();
     container.textContent = source;
   }
@@ -101,24 +128,28 @@ export async function renderPlumeMarkdownInto(
   host.classList.add("markdown-rendered");
   container.appendChild(host);
 
-  const child = attachRenderChild(host, ctx);
+  const child = attachRenderChild(container, host, ctx);
 
   try {
     await MarkdownRenderer.render(ctx.app, source, host, ctx.sourcePath, child);
     if (container.dataset.plumeMdToken !== token) {
       host.remove();
+      releaseRenderChild(container, ctx, child);
       return;
     }
     while (host.firstChild) {
       container.insertBefore(host.firstChild, host);
     }
     host.remove();
+    child.containerEl = container;
     await processIconifyIcons(container);
   } catch {
     if (container.dataset.plumeMdToken !== token) {
       host.remove();
+      releaseRenderChild(container, ctx, child);
       return;
     }
+    releaseRenderChild(container, ctx, child);
     container.empty();
     container.textContent = source;
   }

@@ -149,6 +149,10 @@ function resolveNpmTo(
   for (const tab of validTabs) {
     const newLines: string[] = [];
     for (const line of lines) {
+      // Capturing split keeps `\n` / `&&` tokens — skip empty leftovers only.
+      if (line === "") {
+        continue;
+      }
       const config = findConfig(line);
       if (tab !== "npm" && config && config[tab]) {
         const parsed = (map[line] ??= parseLine(line)) as LineParsed;
@@ -174,7 +178,10 @@ function resolveNpmTo(
         newLines.push(line);
       }
     }
-    res.push(`@tab ${tab}\n\`\`\`${info}\n${newLines.join("")}\n\`\`\``);
+    // Avoid trailing blank `.line` rows (join already keeps `\n` separators;
+    // an extra `\n` before ``` produced `cmd\n\n` and inflated npm-to height).
+    const body = newLines.join("").replace(/\n+$/g, "");
+    res.push(`@tab ${tab}\n\`\`\`${info}\n${body}\n\`\`\``);
   }
 
   return `:::code-tabs#npm-to-${validTabs.join("-")}\n${res.join("\n")}\n:::`;
@@ -223,6 +230,7 @@ export function npmToCodeTabsMarkdown(
   if (!fence) {
     return null;
   }
-  const lines = fence.body.split(/(\n|\s*&&\s*)/);
+  // Strip trailing newlines before split so we do not emit empty code lines.
+  const lines = fence.body.replace(/\n+$/g, "").split(/(\n|\s*&&\s*)/);
   return resolveNpmTo(lines, fence.lang, tabs);
 }

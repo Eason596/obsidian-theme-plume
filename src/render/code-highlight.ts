@@ -1,13 +1,11 @@
-import {
-  bundledLanguages,
-  bundledThemes,
-  createHighlighter,
-  type BundledLanguage,
-  type BundledTheme,
-  type Highlighter,
-  type ThemedToken
-} from "shiki";
-import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import { createHighlighterCore } from "@shikijs/core";
+import { createJavaScriptRegexEngine } from "@shikijs/engine-javascript";
+import type {
+  HighlighterCore,
+  LanguageInput,
+  ThemedToken,
+  ThemeRegistrationAny
+} from "@shikijs/types";
 
 /**
  * Syntax highlighting via Shiki — same engine as VuePress Theme Plume.
@@ -22,38 +20,90 @@ export const SHIKI_THEME_LIGHT = SHIKI_THEME_LIGHT_DEFAULT;
 /** @deprecated Use SHIKI_THEME_DARK_DEFAULT */
 export const SHIKI_THEME_DARK = SHIKI_THEME_DARK_DEFAULT;
 
-const CORE_LANGS = [
-  "javascript",
-  "typescript",
-  "vue",
-  "tsx",
-  "jsx",
-  "python",
-  "r",
-  "json",
-  "css",
-  "html",
-  "xml",
-  "markdown",
-  "bash",
-  "shell",
-  "yaml",
-  "go",
-  "rust",
-  "sql",
-  "java",
-  "cpp",
-  "c",
-  "csharp",
-  "kotlin",
-  "ruby",
-  "php",
-  "swift",
-  "scss",
-  "less",
-  "diff",
-  "plaintext"
-] as const;
+type LanguageLoader = () => Promise<LanguageInput[]>;
+type ThemeLoader = () => Promise<ThemeRegistrationAny>;
+
+/**
+ * Explicit loaders keep Shiki on-demand and prevent the full 332-language bundle
+ * from entering the plugin. Reading view and Live Preview share this same table.
+ */
+const LANGUAGE_LOADERS: Record<string, LanguageLoader> = {
+  javascript: () => import("@shikijs/langs/javascript").then((m) => m.default),
+  typescript: () => import("@shikijs/langs/typescript").then((m) => m.default),
+  vue: () => import("@shikijs/langs/vue").then((m) => m.default),
+  tsx: () => import("@shikijs/langs/tsx").then((m) => m.default),
+  jsx: () => import("@shikijs/langs/jsx").then((m) => m.default),
+  python: () => import("@shikijs/langs/python").then((m) => m.default),
+  r: () => import("@shikijs/langs/r").then((m) => m.default),
+  json: () => import("@shikijs/langs/json").then((m) => m.default),
+  jsonc: () => import("@shikijs/langs/jsonc").then((m) => m.default),
+  css: () => import("@shikijs/langs/css").then((m) => m.default),
+  html: () => import("@shikijs/langs/html").then((m) => m.default),
+  xml: () => import("@shikijs/langs/xml").then((m) => m.default),
+  markdown: () => import("@shikijs/langs/markdown").then((m) => m.default),
+  mdx: () => import("@shikijs/langs/mdx").then((m) => m.default),
+  bash: () => import("@shikijs/langs/bash").then((m) => m.default),
+  shell: () => import("@shikijs/langs/shell").then((m) => m.default),
+  yaml: () => import("@shikijs/langs/yaml").then((m) => m.default),
+  toml: () => import("@shikijs/langs/toml").then((m) => m.default),
+  ini: () => import("@shikijs/langs/ini").then((m) => m.default),
+  go: () => import("@shikijs/langs/go").then((m) => m.default),
+  rust: () => import("@shikijs/langs/rust").then((m) => m.default),
+  sql: () => import("@shikijs/langs/sql").then((m) => m.default),
+  java: () => import("@shikijs/langs/java").then((m) => m.default),
+  cpp: () => import("@shikijs/langs/cpp").then((m) => m.default),
+  c: () => import("@shikijs/langs/c").then((m) => m.default),
+  csharp: () => import("@shikijs/langs/csharp").then((m) => m.default),
+  kotlin: () => import("@shikijs/langs/kotlin").then((m) => m.default),
+  ruby: () => import("@shikijs/langs/ruby").then((m) => m.default),
+  php: () => import("@shikijs/langs/php").then((m) => m.default),
+  swift: () => import("@shikijs/langs/swift").then((m) => m.default),
+  scss: () => import("@shikijs/langs/scss").then((m) => m.default),
+  sass: () => import("@shikijs/langs/sass").then((m) => m.default),
+  less: () => import("@shikijs/langs/less").then((m) => m.default),
+  diff: () => import("@shikijs/langs/diff").then((m) => m.default),
+  "objective-c": () => import("@shikijs/langs/objective-c").then((m) => m.default),
+  perl: () => import("@shikijs/langs/perl").then((m) => m.default),
+  lua: () => import("@shikijs/langs/lua").then((m) => m.default),
+  powershell: () => import("@shikijs/langs/powershell").then((m) => m.default),
+  bat: () => import("@shikijs/langs/bat").then((m) => m.default),
+  graphql: () => import("@shikijs/langs/graphql").then((m) => m.default),
+  dockerfile: () => import("@shikijs/langs/dockerfile").then((m) => m.default),
+  cmake: () => import("@shikijs/langs/cmake").then((m) => m.default),
+  makefile: () => import("@shikijs/langs/makefile").then((m) => m.default),
+  groovy: () => import("@shikijs/langs/groovy").then((m) => m.default),
+  scala: () => import("@shikijs/langs/scala").then((m) => m.default),
+  clojure: () => import("@shikijs/langs/clojure").then((m) => m.default),
+  elixir: () => import("@shikijs/langs/elixir").then((m) => m.default),
+  erlang: () => import("@shikijs/langs/erlang").then((m) => m.default),
+  haskell: () => import("@shikijs/langs/haskell").then((m) => m.default),
+  dart: () => import("@shikijs/langs/dart").then((m) => m.default),
+  zig: () => import("@shikijs/langs/zig").then((m) => m.default),
+  julia: () => import("@shikijs/langs/julia").then((m) => m.default),
+  latex: () => import("@shikijs/langs/latex").then((m) => m.default),
+  protobuf: () => import("@shikijs/langs/protobuf").then((m) => m.default),
+  solidity: () => import("@shikijs/langs/solidity").then((m) => m.default)
+};
+
+/** Curated themes keep settings useful without bundling every Shiki theme. */
+const THEME_LOADERS = {
+  "vitesse-light": () => import("@shikijs/themes/vitesse-light").then((m) => m.default),
+  "vitesse-dark": () => import("@shikijs/themes/vitesse-dark").then((m) => m.default),
+  "github-light": () => import("@shikijs/themes/github-light").then((m) => m.default),
+  "github-dark": () => import("@shikijs/themes/github-dark").then((m) => m.default),
+  "light-plus": () => import("@shikijs/themes/light-plus").then((m) => m.default),
+  "dark-plus": () => import("@shikijs/themes/dark-plus").then((m) => m.default),
+  "one-light": () => import("@shikijs/themes/one-light").then((m) => m.default),
+  "one-dark-pro": () => import("@shikijs/themes/one-dark-pro").then((m) => m.default),
+  "catppuccin-latte": () => import("@shikijs/themes/catppuccin-latte").then((m) => m.default),
+  "catppuccin-mocha": () => import("@shikijs/themes/catppuccin-mocha").then((m) => m.default),
+  nord: () => import("@shikijs/themes/nord").then((m) => m.default),
+  dracula: () => import("@shikijs/themes/dracula").then((m) => m.default),
+  "tokyo-night": () => import("@shikijs/themes/tokyo-night").then((m) => m.default),
+  "material-theme": () => import("@shikijs/themes/material-theme").then((m) => m.default)
+} satisfies Record<string, ThemeLoader>;
+
+export type SupportedShikiTheme = keyof typeof THEME_LOADERS;
 
 /** Extra aliases Obsidian / fences often use. */
 const LANG_ALIASES: Record<string, string> = {
@@ -158,17 +208,17 @@ const EXT_TO_LANG: Record<string, string> = {
   sol: "solidity"
 };
 
-let highlighterPromise: Promise<Highlighter> | null = null;
-let themeLight: BundledTheme = SHIKI_THEME_LIGHT_DEFAULT;
-let themeDark: BundledTheme = SHIKI_THEME_DARK_DEFAULT;
+let highlighterPromise: Promise<HighlighterCore> | null = null;
+let themeLight: SupportedShikiTheme = SHIKI_THEME_LIGHT_DEFAULT;
+let themeDark: SupportedShikiTheme = SHIKI_THEME_DARK_DEFAULT;
 
-export function isBundledShikiTheme(id: string): id is BundledTheme {
-  return id in bundledThemes;
+export function isBundledShikiTheme(id: string): id is SupportedShikiTheme {
+  return id in THEME_LOADERS;
 }
 
 /** Sorted list of Shiki bundled theme ids (for settings UI). */
 export function listBundledShikiThemes(): string[] {
-  return Object.keys(bundledThemes).sort((a, b) => a.localeCompare(b));
+  return Object.keys(THEME_LOADERS).sort((a, b) => a.localeCompare(b));
 }
 
 /** Apply light/dark theme ids from plugin settings (invalid ids fall back to vitesse). */
@@ -177,7 +227,7 @@ export function configureShikiThemes(light: string, dark: string): void {
   themeDark = isBundledShikiTheme(dark) ? dark : SHIKI_THEME_DARK_DEFAULT;
 }
 
-function resolveShikiTheme(): BundledTheme {
+function resolveShikiTheme(): SupportedShikiTheme {
   if (typeof document !== "undefined" && document.body?.classList.contains("theme-dark")) {
     return themeDark;
   }
@@ -189,24 +239,23 @@ export function getActiveShikiThemeId(): string {
   return resolveShikiTheme();
 }
 
-async function getHighlighter(): Promise<Highlighter> {
+async function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
-    const initial = Array.from(new Set<BundledTheme>([themeLight, themeDark]));
-    highlighterPromise = createHighlighter({
-      themes: initial,
-      langs: [...CORE_LANGS],
-      // JS regex engine — no WASM, friendlier for Obsidian / esbuild
+    highlighterPromise = createHighlighterCore({
+      themes: [],
+      langs: [],
+      // JS regex engine: no WASM and no desktop-only dependency.
       engine: createJavaScriptRegexEngine()
     });
   }
   return highlighterPromise;
 }
 
-async function ensureTheme(highlighter: Highlighter, theme: BundledTheme): Promise<void> {
+async function ensureTheme(highlighter: HighlighterCore, theme: SupportedShikiTheme): Promise<void> {
   if (highlighter.getLoadedThemes().includes(theme)) return;
-  if (!(theme in bundledThemes)) return;
+  const loader = THEME_LOADERS[theme];
   try {
-    await highlighter.loadTheme(theme);
+    await highlighter.loadTheme(await loader());
   } catch (err) {
     console.error("[theme-plume] Failed to load Shiki theme", theme, err);
   }
@@ -264,17 +313,18 @@ function tokensToLineHtml(tokens: ThemedToken[]): string {
     .join("");
 }
 
-async function ensureLanguage(highlighter: Highlighter, lang: string): Promise<string> {
+async function ensureLanguage(highlighter: HighlighterCore, lang: string): Promise<string> {
   const normalized = normalizeFenceLang(lang);
   if (normalized === "plaintext" || normalized === "text") return "plaintext";
 
   const loaded = highlighter.getLoadedLanguages();
   if (loaded.includes(normalized)) return normalized;
 
-  // Dynamic load from Shiki bundled grammars when not in CORE_LANGS
-  if (normalized in bundledLanguages) {
+  const loader = LANGUAGE_LOADERS[normalized];
+  if (loader) {
     try {
-      await highlighter.loadLanguage(normalized as keyof typeof bundledLanguages);
+      const registrations = await loader();
+      await highlighter.loadLanguage(...registrations);
       return normalized;
     } catch {
       /* fall through */
@@ -301,7 +351,7 @@ export async function highlightSourceLines(lang: string, source: string): Promis
     const theme = resolveShikiTheme();
     await ensureTheme(highlighter, theme);
     const result = highlighter.codeToTokens(text, {
-      lang: resolved as BundledLanguage,
+      lang: resolved,
       theme
     });
 
@@ -319,17 +369,22 @@ export function resolveCodeLanguage(codeEl: HTMLElement, preEl?: HTMLElement | n
   return "plaintext";
 }
 
-/** Warm the highlighter (call on plugin load to reduce first-paint lag). */
-export function preloadHighlighter(): void {
-  void getHighlighter().catch((err) => {
-    console.error("[theme-plume] Shiki init failed", err);
-  });
+/** Release grammar/theme state when the plugin unloads. */
+export async function disposeHighlighter(): Promise<void> {
+  const pending = highlighterPromise;
+  highlighterPromise = null;
+  if (!pending) return;
+  try {
+    (await pending).dispose();
+  } catch {
+    /* initialization may have failed */
+  }
 }
 
-/** Bundled + currently loaded language ids (diagnostics). */
+/** Supported + currently loaded language ids (diagnostics). */
 export async function listRegisteredLanguages(): Promise<string[]> {
   const highlighter = await getHighlighter();
-  const bundled = Object.keys(bundledLanguages);
+  const bundled = Object.keys(LANGUAGE_LOADERS);
   const loaded = highlighter.getLoadedLanguages();
   return Array.from(new Set([...bundled, ...loaded, "vue"])).sort();
 }

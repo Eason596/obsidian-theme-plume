@@ -46,6 +46,33 @@ describe("decorateCodeBlockFeatures", () => {
     expect(code.innerHTML).toMatch(/style="[^"]*color:/);
   }, 30_000);
 
+  it("produces identical Shiki output for Live Preview and Reading view", async () => {
+    const md = ["```ts", "const answer: number = 42;", "```"].join("\n");
+    const fences = scanCodeFences(md);
+    const makeRoot = (): HTMLElement => {
+      const root = document.createElement("div");
+      const pre = document.createElement("pre");
+      const code = document.createElement("code");
+      code.className = "language-ts";
+      code.textContent = "const answer: number = 42;";
+      pre.appendChild(code);
+      root.appendChild(pre);
+      return root;
+    };
+    const livePreview = makeRoot();
+    const readingView = makeRoot();
+
+    await Promise.all([
+      decorateCodeBlockFeatures(livePreview, fences),
+      decorateCodeBlockFeatures(readingView, fences)
+    ]);
+
+    expect(livePreview.querySelector("code")?.innerHTML).toBe(
+      readingView.querySelector("code")?.innerHTML
+    );
+    expect(livePreview.querySelector("code")?.classList.contains("shiki")).toBe(true);
+  }, 30_000);
+
   it("rewrites from markdown body when highlight meta needs it", async () => {
     const md = ["```yaml {1}", "link-icons: true", "link-icon-size: 16", "```"].join("\n");
     const fences = scanCodeFences(md);

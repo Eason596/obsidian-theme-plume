@@ -1,7 +1,16 @@
 import { normalizeIconifyId } from "../offlineIconify";
 
 const ICONIFY_API_BASE = "https://api.iconify.design";
-const iconSvgCache = new Map<string, Promise<string | null>>();
+const MAX_ICON_CACHE_ENTRIES = 256;
+const ICON_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const ICON_FAILURE_TTL_MS = 5 * 60 * 1000;
+
+interface IconCacheEntry {
+  pending: Promise<string | null>;
+  expiresAt: number;
+}
+
+const iconSvgCache = new Map<string, IconCacheEntry>();
 
 interface IconifyRequestResponse {
   status: number;
@@ -44,8 +53,13 @@ function getIconifyUrl(iconId: string): string | null {
 async function fetchIconifySvg(iconId: string): Promise<string | null> {
   const normalized = normalizeIconifyId(iconId);
   const cached = iconSvgCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) {
+    iconSvgCache.delete(normalized);
+    iconSvgCache.set(normalized, cached);
+    return cached.pending;
+  }
   if (cached) {
-    return cached;
+    iconSvgCache.delete(normalized);
   }
 
   const pending = (async (): Promise<string | null> => {
@@ -68,8 +82,26 @@ async function fetchIconifySvg(iconId: string): Promise<string | null> {
     }
   })();
 
-  iconSvgCache.set(normalized, pending);
+  const entry: IconCacheEntry = {
+    pending,
+    expiresAt: Date.now() + ICON_CACHE_TTL_MS
+  };
+  iconSvgCache.set(normalized, entry);
+  while (iconSvgCache.size > MAX_ICON_CACHE_ENTRIES) {
+    const oldest = iconSvgCache.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    iconSvgCache.delete(oldest);
+  }
+  void pending.then((svg) => {
+    if (iconSvgCache.get(normalized) === entry) {
+      entry.expiresAt = Date.now() + (svg ? ICON_CACHE_TTL_MS : ICON_FAILURE_TTL_MS);
+    }
+  });
   return pending;
+}
+
+export function clearIconifyCache(): void {
+  iconSvgCache.clear();
 }
 
 export function createIconifySpanHtml(
@@ -89,12 +121,42 @@ export function prepareIconifyIconElement(element: HTMLElement, iconId: string):
   element.classList.add("ft-icon-online");
 }
 
-function appendSvgMarkup(element: HTMLElement, svg: string): boolean {
+export function sanitizeIconifySvg(svg: string): SVGElement | null {
   const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
   const svgElement = parsed.documentElement;
-  if (svgElement.nodeName.toLowerCase() !== "svg") {
-    return false;
+  if (
+    svgElement.nodeName.toLowerCase() !== "svg"
+    || parsed.querySelector("parsererror")
+  ) {
+    return null;
   }
+
+  parsed.querySelectorAll("script, foreignObject, iframe, object, embed, audio, video, image")
+    .forEach((node) => node.remove());
+
+  for (const node of [svgElement, ...Array.from(svgElement.querySelectorAll("*"))]) {
+    for (const name of node.getAttributeNames()) {
+      const lower = name.toLowerCase();
+      const value = node.getAttribute(name)?.trim() ?? "";
+      if (lower.startsWith("on")) {
+        node.removeAttribute(name);
+        continue;
+      }
+      if (lower === "href" || lower === "xlink:href") {
+        if (!value.startsWith("#")) node.removeAttribute(name);
+        continue;
+      }
+      if (/url\s*\(/i.test(value) && !/url\s*\(\s*#[^)]+\)/i.test(value)) {
+        node.removeAttribute(name);
+      }
+    }
+  }
+  return svgElement as unknown as SVGElement;
+}
+
+function appendSvgMarkup(element: HTMLElement, svg: string): boolean {
+  const svgElement = sanitizeIconifySvg(svg);
+  if (!svgElement) return false;
   element.appendChild(element.ownerDocument.importNode(svgElement, true));
   return true;
 }

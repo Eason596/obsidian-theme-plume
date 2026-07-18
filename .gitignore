@@ -1,6 +1,8 @@
 node_modules/
 main.js
 main.js.map
+qrcode-lib.cjs
+qrcode-lib.js
 .DS_Store
 Thumbs.db
 *.log

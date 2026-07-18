@@ -1,6 +1,6 @@
 {
   "name": "theme-plume",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "VuePress Theme Plume markdown extensions for Obsidian.",
   "license": "MIT",
@@ -17,6 +17,8 @@
     "test:legacy": "node scripts/run-tests.mjs"
   },
   "devDependencies": {
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.38.6",
     "@types/node": "^20.17.57",
     "@types/qrcode": "^1.5.6",
     "esbuild": "^0.25.5",
@@ -28,7 +30,11 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "qrcode": "^1.5.4",
-    "shiki": "^4.3.1"
+    "@shikijs/core": "^4.3.1",
+    "@shikijs/engine-javascript": "^4.3.1",
+    "@shikijs/langs": "^4.3.1",
+    "@shikijs/themes": "^4.3.1",
+    "@shikijs/types": "^4.3.1",
+    "qrcode": "^1.5.4"
   }
 }

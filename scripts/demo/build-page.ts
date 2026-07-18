@@ -74,7 +74,10 @@ async function main(): Promise<void> {
   globalThis.window = window as unknown as Window & typeof globalThis;
   globalThis.document = document;
   globalThis.HTMLElement = window.HTMLElement;
+  globalThis.HTMLTableElement = window.HTMLTableElement;
+  globalThis.HTMLTableCellElement = window.HTMLTableCellElement;
   globalThis.Node = window.Node;
+  globalThis.DOMParser = window.DOMParser;
   globalThis.requestAnimationFrame = (cb: FrameRequestCallback) =>
     setTimeout(() => cb(Date.now()), 0) as unknown as number;
   globalThis.CustomEvent = window.CustomEvent;

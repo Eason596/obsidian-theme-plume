@@ -1,11 +1,13 @@
-import { setIcon } from "obsidian";
+import { setIcon, type Component } from "obsidian";
 import { resolveNodeIcon } from "../icons";
 import type { FileTreeIconMode, TabItem } from "../types";
 import { hashString } from "../utils/hash";
+import { unlockHostHeight } from "../utils/unlock-host-height";
 import { prepareIconifyIconElement, processIconifyIcons } from "./iconify-online";
 import {
   attachTabsKeyboardNav,
   getTabStoreValue,
+  setSharedTabActive,
   SHARED_TAB_ACTIVE,
   TABS_SYNC_EVENT,
   writeTabStoreValue
@@ -24,6 +26,8 @@ export interface TabbedContainerOptions {
   lazyPanels?: boolean;
   /** Bumps when the file is edited; forces panel re-render even if DOM nodes are reused. */
   contentEpoch?: number;
+  /** Render-pass lifetime; releases document listeners when the section rerenders. */
+  component?: Component;
   renderPanel: (panel: HTMLElement, markdown: string) => Promise<void>;
 }
 
@@ -33,21 +37,19 @@ function tabsContentRevision(tabs: TabItem[]): string {
 
 const VARIANT_CLASSES: Record<
   TabbedVariant,
-  { wrapper: string; nav: string; body: string; button: string; panel: string; btnPrefix: string; panelPrefix: string }
+  { wrapper: string; nav: string; button: string; panel: string; btnPrefix: string; panelPrefix: string }
 > = {
   tabs: {
     wrapper: "vp-tabs obsidian-vuepress-tabs",
     nav: "vp-tabs-nav",
-    body: "vp-tabs-body",
-    button: "vp-tabs-tab",
-    panel: "vp-tabs-panel",
+    button: "vp-tab-nav",
+    panel: "vp-tab",
     btnPrefix: "vp-tabs-btn",
     panelPrefix: "vp-tabs-panel"
   },
   "code-tabs": {
     wrapper: "vp-code-tabs obsidian-vuepress-code-tabs",
     nav: "vp-code-tabs-nav",
-    body: "vp-code-tabs-body",
     button: "vp-code-tab-nav",
     panel: "vp-code-tab",
     btnPrefix: "vp-code-tabs-btn",
@@ -119,12 +121,9 @@ export async function renderTabbedContainer(
   const nav = document.createElement("div");
   nav.className = cls.nav;
   nav.setAttribute("role", "tablist");
+  nav.setAttribute("aria-orientation", "horizontal");
   nav.setAttribute("aria-label", variant === "code-tabs" ? "代码选项卡" : "标签页");
   wrapper.appendChild(nav);
-
-  const body = document.createElement("div");
-  body.className = cls.body;
-  wrapper.appendChild(body);
 
   const explicitActive = tabs.find((t) => t.active)?.value;
   const sharedActive = sharedId ? SHARED_TAB_ACTIVE.get(sharedId) : undefined;
@@ -202,23 +201,26 @@ export async function renderTabbedContainer(
       btn.classList.toggle("active", isActive);
       btn.setAttribute("aria-selected", isActive ? "true" : "false");
       btn.tabIndex = isActive ? 0 : -1;
-      btn.setAttribute("aria-disabled", isActive ? "true" : "false");
+      btn.removeAttribute("aria-disabled");
     }
     for (const [v, panel] of panels) {
       const isActive = v === value;
       panel.classList.toggle("active", isActive);
+      panel.toggleAttribute("hidden", !isActive);
       panel.setAttribute("aria-hidden", isActive ? "false" : "true");
       panel.setAttribute("aria-expanded", isActive ? "true" : "false");
     }
 
     if (lazyPanels) {
-      void ensurePanelRendered(value);
-    } else {
-      // Eager mode: panels already filled; just toggle visibility via .active
+      void ensurePanelRendered(value).then(() => {
+        if (variant === "code-tabs") unlockHostHeight(wrapper, options.component);
+      });
+    } else if (variant === "code-tabs") {
+      unlockHostHeight(wrapper, options.component);
     }
 
     if (sharedId) {
-      SHARED_TAB_ACTIVE.set(sharedId, value);
+      setSharedTabActive(sharedId, value);
       if (persistSelection) {
         writeTabStoreValue(sharedId, value);
       }
@@ -253,17 +255,15 @@ export async function renderTabbedContainer(
     nav.appendChild(button);
     buttons.set(tab.value, button);
 
-    const panel = document.createElement("section");
+    const panel = document.createElement("div");
     panel.className = cls.panel;
     panel.id = panelId;
     panel.setAttribute("role", "tabpanel");
     panel.setAttribute("aria-labelledby", buttonId);
-    panel.setAttribute("tabindex", "0");
-    body.appendChild(panel);
+    wrapper.appendChild(panel);
     panels.set(tab.value, panel);
 
     button.addEventListener("click", () => {
-      if (activeValue === tab.value) return;
       setActive(tab.value, true);
     });
   }
@@ -281,6 +281,9 @@ export async function renderTabbedContainer(
       setActive(detail.value, false);
     };
     document.addEventListener(TABS_SYNC_EVENT, onSync as EventListener);
+    options.component?.register(() => {
+      document.removeEventListener(TABS_SYNC_EVENT, onSync as EventListener);
+    });
   }
 
   attachTabsKeyboardNav(nav, buttons, () => activeValue, (value) => setActive(value, true));
@@ -292,6 +295,9 @@ export async function renderTabbedContainer(
   if (lazyPanels) {
     if (initialValue) {
       await ensurePanelRendered(initialValue);
+    }
+    if (variant === "code-tabs") {
+      unlockHostHeight(wrapper, options.component);
     }
     return;
   }
@@ -310,4 +316,7 @@ export async function renderTabbedContainer(
       }
     })
   );
+  if (variant === "code-tabs") {
+    unlockHostHeight(wrapper, options.component);
+  }
 }
