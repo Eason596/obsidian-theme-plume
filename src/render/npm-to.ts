@@ -14,6 +14,7 @@ import {
 } from "./npm-to-preset";
 
 export type { NpmToPackageManager };
+export { DEFAULT_TABS };
 
 interface LineParsed {
   env: string;

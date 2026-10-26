@@ -10,6 +10,8 @@ import {
   resolveCodeLanguage
 } from "./code-highlight";
 import { prepareIconifyIconElement, processIconifyIcons } from "./iconify-online";
+import { defaultLineNumbersForFence } from "./shared-preset";
+import { getSyntaxFlags } from "./syntax-flags";
 
 export const CODE_TITLE_PROCESSED_ATTR = "data-vp-code-title-done";
 export const CODE_FEATURES_PROCESSED_ATTR = "data-vp-code-features-done";
@@ -164,7 +166,7 @@ export function scanCodeFences(markdown: string): CodeFenceMeta[] {
     if (fenceLen > 0) {
       const closeRe = new RegExp(`^\\s*${fenceChar}{${fenceLen},}\\s*$`);
       if (closeRe.test(line)) {
-        result.push({
+        const closed = {
           ...(currentMeta ?? {
             highlightLines: [],
             lineNumbers: null,
@@ -174,7 +176,9 @@ export function scanCodeFences(markdown: string): CodeFenceMeta[] {
           openLine,
           closeLine: i,
           bodyLines: bodyLines.slice()
-        });
+        };
+        closed.lineNumbers = defaultLineNumbersForFence(closed.lineNumbers, closed.bodyLines.length);
+        result.push(closed);
         fenceChar = "";
         fenceLen = 0;
         openLine = -1;
@@ -194,12 +198,14 @@ export function scanCodeFences(markdown: string): CodeFenceMeta[] {
     bodyLines.length = 0;
   }
   if (fenceLen > 0 && openLine >= 0 && currentMeta) {
-    result.push({
+    const unclosed = {
       ...currentMeta,
       openLine,
       closeLine: lines.length - 1,
       bodyLines: bodyLines.slice()
-    });
+    };
+    unclosed.lineNumbers = defaultLineNumbersForFence(unclosed.lineNumbers, unclosed.bodyLines.length);
+    result.push(unclosed);
   }
 
   if (scanCache.size >= SCAN_CACHE_MAX) {
@@ -586,7 +592,14 @@ function looksAlreadyDecorated(code: HTMLElement, meta: CodeFenceMeta): boolean 
   if (meta.bodyLines.some((l) => /\[!code\s+focus/.test(l)) && !code.querySelector(".focused")) {
     return false;
   }
-  return true;
+  return lineNumberChromeMatches(code, meta);
+}
+
+function lineNumberChromeMatches(code: HTMLElement, meta: CodeFenceMeta): boolean {
+  const host = code.closest(".vp-code-features");
+  const enabled = host instanceof HTMLElement && host.classList.contains("line-numbers-mode");
+  if (meta.lineNumbers === true) return enabled;
+  return !enabled;
 }
 
 const activeFenceObservers = new Set<MutationObserver>();
@@ -790,6 +803,7 @@ export async function decorateCodeBlockFeatures(
   component?: Component,
   options?: DecorateCodeFeaturesOptions
 ): Promise<void> {
+  if (!getSyntaxFlags().code) return;
   const pres = listCodeBlockPres(container);
   if (pres.length === 0) return;
 

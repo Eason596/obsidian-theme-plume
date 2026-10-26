@@ -46,6 +46,20 @@ describe("decorateCodeBlockFeatures", () => {
     expect(code.innerHTML).toMatch(/style="[^"]*color:/);
   }, 30_000);
 
+  it("shows line numbers from 10 lines unless the fence opts out", () => {
+    const body = Array.from({ length: 10 }, (_, index) => `const line${index + 1} = ${index + 1};`);
+    const longFence = ["```ts", ...body, "```"].join("\n");
+    const shortFence = ["```ts", "const line1 = 1;", "```"].join("\n");
+    const disabled = ["```ts:no-line-numbers", ...body, "```"].join("\n");
+    const forced = ["```ts:line-numbers", "const line1 = 1;", "```"].join("\n");
+
+    expect(scanCodeFences(longFence)[0]?.lineNumbers).toBe(true);
+    expect(scanCodeFences(shortFence)[0]?.lineNumbers).toBeNull();
+    expect(scanCodeFences(disabled)[0]?.lineNumbers).toBe(false);
+    expect(scanCodeFences(forced)[0]?.lineNumbers).toBe(true);
+    expect(scanCodeFences(forced)[0]?.lineNumbersStart).toBe(1);
+  });
+
   it("produces identical Shiki output for Live Preview and Reading view", async () => {
     const md = ["```ts", "const answer: number = 42;", "```"].join("\n");
     const fences = scanCodeFences(md);

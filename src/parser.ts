@@ -57,6 +57,8 @@ interface HtmlComponentOpen {
   attrs: string;
   afterOpen: string;
   selfClosing: boolean;
+  /** Last line occupied by the opening tag. Attribute lines can sit between the name and `>`. */
+  endLine: number;
 }
 
 interface HtmlComponentBlock {
@@ -68,27 +70,75 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function matchHtmlComponentOpen(line: string, tag: HtmlComponentTag): HtmlComponentOpen | null {
-  const name = escapeRegExp(tag);
-  const selfClosing = line.match(new RegExp(`^\\s*<${name}\\b([^>]*)\\/?>\\s*$`, "i"));
-  if (selfClosing && /\/>\s*$/.test(line)) {
-    return {
-      attrs: selfClosing[1] ?? "",
-      afterOpen: "",
-      selfClosing: true
-    };
+const MAX_HTML_OPEN_TAG_LINES = 40;
+
+/**
+ * Read a component opening tag that may span lines.
+ * `>` inside quotes does not end the tag. A blank line ends the scan without a match,
+ * so an unclosed tag does not absorb the rest of the note.
+ */
+function readHtmlComponentOpen(
+  lines: string[],
+  startLine: number,
+  tag: HtmlComponentTag
+): HtmlComponentOpen | null {
+  const first = lines[startLine] ?? "";
+  const start = first.match(new RegExp(`^\\s*<${escapeRegExp(tag)}\\b`, "i"));
+  if (!start) return null;
+
+  let quote: '"' | "'" | null = null;
+  let pendingSlash = false;
+  let attrs = "";
+  let lineIndex = startLine;
+  let column = start[0].length;
+
+  while (lineIndex < lines.length && lineIndex < startLine + MAX_HTML_OPEN_TAG_LINES) {
+    if (lineIndex > startLine && (lines[lineIndex] ?? "").trim() === "") {
+      return null;
+    }
+
+    const line = lines[lineIndex] ?? "";
+    while (column < line.length) {
+      const ch = line[column] ?? "";
+      if (quote) {
+        attrs += ch;
+        if (ch === quote) quote = null;
+        column += 1;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+        pendingSlash = false;
+        attrs += ch;
+        column += 1;
+        continue;
+      }
+      if (ch === ">") {
+        if (pendingSlash) attrs = attrs.replace(/\/\s*$/, "");
+        return {
+          attrs,
+          afterOpen: line.slice(column + 1),
+          selfClosing: pendingSlash,
+          endLine: lineIndex
+        };
+      }
+      if (ch === "/") {
+        pendingSlash = true;
+        attrs += ch;
+        column += 1;
+        continue;
+      }
+      if (!/\s/.test(ch)) pendingSlash = false;
+      attrs += ch;
+      column += 1;
+    }
+
+    attrs += "\n";
+    lineIndex += 1;
+    column = 0;
   }
 
-  const open = line.match(new RegExp(`^\\s*<${name}\\b([^>]*)>(.*)$`, "i"));
-  if (!open) {
-    return null;
-  }
-
-  return {
-    attrs: open[1] ?? "",
-    afterOpen: open[2] ?? "",
-    selfClosing: false
-  };
+  return null;
 }
 
 function splitAtHtmlComponentClose(line: string, tag: HtmlComponentTag): { before: string } | null {
@@ -99,14 +149,26 @@ function splitAtHtmlComponentClose(line: string, tag: HtmlComponentTag): { befor
   return { before: match[1] ?? "" };
 }
 
+function pushHtmlOpenLines(
+  content: string[],
+  lines: string[],
+  cursor: number,
+  endLine: number
+): number {
+  content.push(lines[cursor] ?? "");
+  for (let k = cursor + 1; k <= endLine; k += 1) {
+    content.push(lines[k] ?? "");
+  }
+  return endLine;
+}
+
 function collectHtmlComponentBlock(
   lines: string[],
-  startLine: number,
   tag: HtmlComponentTag,
   open: HtmlComponentOpen
 ): HtmlComponentBlock | null {
   if (open.selfClosing) {
-    return { rawContent: "", endLine: startLine };
+    return { rawContent: "", endLine: open.endLine };
   }
 
   const content: string[] = [];
@@ -115,7 +177,7 @@ function collectHtmlComponentBlock(
     if (firstClose.before.trim()) {
       content.push(firstClose.before);
     }
-    return { rawContent: content.join("\n"), endLine: startLine };
+    return { rawContent: content.join("\n"), endLine: open.endLine };
   }
   if (open.afterOpen.trim()) {
     content.push(open.afterOpen);
@@ -125,8 +187,8 @@ function collectHtmlComponentBlock(
   let fenceLength = 0;
   let sameTagDepth = 0;
 
-  for (let cursor = startLine + 1; cursor < lines.length; cursor += 1) {
-    const current = lines[cursor];
+  for (let cursor = open.endLine + 1; cursor < lines.length; cursor += 1) {
+    const current = lines[cursor] ?? "";
 
     if (fenceLength > 0) {
       content.push(current);
@@ -147,10 +209,10 @@ function collectHtmlComponentBlock(
       continue;
     }
 
-    const nestedOpen = matchHtmlComponentOpen(current, tag);
-    if (nestedOpen && !nestedOpen.selfClosing) {
-      sameTagDepth += 1;
-      content.push(current);
+    const nestedOpen = readHtmlComponentOpen(lines, cursor, tag);
+    if (nestedOpen) {
+      if (!nestedOpen.selfClosing) sameTagDepth += 1;
+      cursor = pushHtmlOpenLines(content, lines, cursor, nestedOpen.endLine);
       continue;
     }
 
@@ -1387,77 +1449,6 @@ function detectContainerOpen(line: string, fallbackIcon: FileTreeIconMode): Cont
     return { type: "card-masonry", markerLen, attrs };
   }
 
-  if (keyword === "repo-card") {
-    // Accept either `repo="owner/name"` or a positional `owner/name` after
-    // the keyword (matches the convention used by `prompt` containers).
-    let repo = parseAttrValue(rest, "repo") ?? "";
-    if (!repo) {
-      const positional = rest.trim().split(/\s+/)[0] ?? "";
-      if (positional && positional.includes("/") && !positional.includes("=")) {
-        repo = positional;
-      }
-    }
-    if (!repo) return null;
-    const attrs: RepoCardContainerAttrs = { repo };
-    const provider = parseAttrValue(rest, "provider");
-    if (provider === "gitee" || provider === "github") attrs.provider = provider;
-    if (/(^|\s)fullname(\s|$|=)/i.test(rest)) {
-      const v = parseAttrValue(rest, "fullname");
-      attrs.fullname = v ? v !== "false" : true;
-    }
-    return { type: "repo-card", markerLen, attrs };
-  }
-
-  if (keyword === "link-card") {
-    // href is required and supports either `href="..."` or a positional URL
-    // after the keyword (matches the `repo-card` convention).
-    let href = parseAttrValue(rest, "href") ?? "";
-    if (!href) {
-      const positional = rest.trim().split(/\s+/)[0] ?? "";
-      if (positional && !positional.includes("=")) href = positional;
-    }
-    if (!href) return null;
-    const attrs: LinkCardContainerAttrs = { href };
-    const title = parseAttrValue(rest, "title");
-    if (title) attrs.title = title;
-    const icon = parseAttrValue(rest, "icon");
-    if (icon) attrs.icon = icon;
-    const description = parseAttrValue(rest, "description");
-    if (description) attrs.description = description;
-    const target = parseAttrValue(rest, "target");
-    if (target) attrs.target = target;
-    const rel = parseAttrValue(rest, "rel");
-    if (rel) attrs.rel = rel;
-    return { type: "link-card", markerLen, attrs };
-  }
-
-  if (keyword === "image-card") {
-    // image is required and supports either `image="..."` or a positional URL
-    let image = parseAttrValue(rest, "image") ?? "";
-    if (!image) {
-      const positional = rest.trim().split(/\s+/)[0] ?? "";
-      if (positional && !positional.includes("=")) image = positional;
-    }
-    if (!image) return null;
-    const attrs: ImageCardContainerAttrs = { image };
-    const title = parseAttrValue(rest, "title");
-    if (title) attrs.title = title;
-    const description = parseAttrValue(rest, "description");
-    if (description) attrs.description = description;
-    const href = parseAttrValue(rest, "href");
-    if (href) attrs.href = href;
-    const author = parseAttrValue(rest, "author");
-    if (author) attrs.author = author;
-    const date = parseAttrValue(rest, "date");
-    if (date) attrs.date = date;
-    const width = parseAttrValue(rest, "width");
-    if (width) attrs.width = width;
-    const center = parseAttrValue(rest, "center");
-    if (center !== undefined) attrs.center = center !== "false";
-    else if (/(^|\s)center(\s|$)/.test(rest)) attrs.center = true;
-    return { type: "image-card", markerLen, attrs };
-  }
-
   if (keyword === "field") {
     // VuePress: positional name (`::: field propertyName`) or legacy attrs.
     // Body `@tag` lines are merged at render time via `parseFieldContent`.
@@ -1716,7 +1707,7 @@ export function parseAllBlocks(
 
       let matchedHtmlComponent = false;
       for (const component of htmlComponents) {
-        const open = matchHtmlComponentOpen(line, component.tag);
+        const open = readHtmlComponentOpen(lines, i, component.tag);
         if (!open) {
           continue;
         }
@@ -1726,9 +1717,11 @@ export function parseAllBlocks(
           continue;
         }
 
-        const collected = collectHtmlComponentBlock(lines, i, component.tag, open);
+        const collected = collectHtmlComponentBlock(lines, component.tag, open);
         if (!collected) {
-          continue;
+          i = open.endLine + 1;
+          matchedHtmlComponent = true;
+          break;
         }
 
         blocks.push({

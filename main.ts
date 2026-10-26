@@ -8,6 +8,8 @@ import {
   Setting,
   TFile,
   TFolder,
+  FileSystemAdapter,
+  Platform,
   getLanguage,
   getIconIds,
   normalizePath,
@@ -33,8 +35,12 @@ import {
 import { clearFaviconCache, clearFaviconRetryTimers } from "./src/render/link-favicons";
 import { configureQrcodeLoader } from "./src/render/qrcode-loader";
 import { hashString } from "./src/utils/hash";
+import { filterBlocks, setSyntaxFlags } from "./src/render/syntax-flags";
 import { plumeInlineWidgetsExtension } from "./src/editor/inline-widgets";
 import { getSettingsMessages } from "./src/settings/i18n";
+import { publicFilePath } from "./src/render/publish-assets";
+import { installReadingEditGuard } from "./src/mobile/reading-edit-guard";
+import { mobileReadingCss } from "./src/mobile/reading-scale";
 import { PreviewPipeline } from "./src/pipeline/preview-pipeline";
 import {
   PreviewDocumentSync,
@@ -106,6 +112,9 @@ export default class ObsidianPlumePlugin extends Plugin {
   private layoutReadyAt = 0;
   /** One-macrotask cache for isRenderTargetCurrent leaf scans. */
   private viewContainmentCache: Array<{ path: string; containers: HTMLElement[] }> | null = null;
+  private readingEditGuardTeardown: (() => void) | null = null;
+  private mobileReadingStyle: HTMLStyleElement | null = null;
+  private readingEditRevertTimers: number[] = [];
 
   private static readonly MODE_SYNC_DELAY_MS = 32;
   private static readonly MODE_SYNC_RETRY_MS = 56;
@@ -123,6 +132,10 @@ export default class ObsidianPlumePlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    this.applyMobileReadingScale();
+    this.registerDomEvent(window, "resize", () => {
+      this.applyMobileReadingScale();
+    });
     setIconifyRequestUrl(requestUrl);
     configureQrcodeLoader(this.app, this.manifest.dir ?? "");
     this.registerEditorExtension(plumeInlineWidgetsExtension);
@@ -142,6 +155,10 @@ export default class ObsidianPlumePlugin extends Plugin {
     });
 
     this.addSettingTab(new PlumeSettingTab(this.app, this));
+    this.app.workspace.onLayoutReady(() => {
+      this.applyMobileReadingScale();
+      this.syncReadingEditGuard();
+    });
 
     this.addCommand({
       id: "self-check",
@@ -166,6 +183,14 @@ export default class ObsidianPlumePlugin extends Plugin {
         this.previewSync.markDirty(view.file.path, view.editor.getValue());
         this.fullRerenderPreviewView(view);
         new Notice("Theme Plume: preview refreshed.");
+      }
+    });
+
+    this.addCommand({
+      id: "publish-shared-assets",
+      name: "Copy shared images and assets to VuePress",
+      callback: () => {
+        void this.publishSharedAssets();
       }
     });
 
@@ -330,6 +355,36 @@ export default class ObsidianPlumePlugin extends Plugin {
     });
   }
 
+  private async publishSharedAssets(): Promise<void> {
+    const t = getSettingsMessages(this.settings.settingsLanguage);
+    const publicDir = this.settings.vuepressPublicDir.trim();
+    if (!publicDir) {
+      new Notice(t.publishAssetsMissingDir);
+      return;
+    }
+    if (!(this.app.vault.adapter instanceof FileSystemAdapter)) {
+      new Notice(t.publishAssetsFailed);
+      return;
+    }
+    try {
+      const fs = await import("node:fs/promises");
+      const path = await import("node:path");
+      let copied = 0;
+      for (const file of this.app.vault.getFiles()) {
+        const dest = publicFilePath(publicDir, file.path);
+        if (!dest) continue;
+        const data = await this.app.vault.readBinary(file);
+        await fs.mkdir(path.dirname(dest), { recursive: true });
+        await fs.writeFile(dest, Buffer.from(data));
+        copied += 1;
+      }
+      new Notice(t.publishAssetsDone.replace("{count}", String(copied)));
+    } catch (err) {
+      console.error("[theme-plume] shared asset copy failed", err);
+      new Notice(t.publishAssetsFailed);
+    }
+  }
+
   private onCssChange(): void {
     if (this.layoutReadyAt > 0 && Date.now() - this.layoutReadyAt < 3000) {
       this.lastThemeDark = document.body.classList.contains("theme-dark");
@@ -365,6 +420,7 @@ export default class ObsidianPlumePlugin extends Plugin {
   }
 
   onunload(): void {
+    this.clearMobileReadingStyle();
     if (this.cssChangeTimer !== null) {
       window.clearTimeout(this.cssChangeTimer);
       this.cssChangeTimer = null;
@@ -395,6 +451,9 @@ export default class ObsidianPlumePlugin extends Plugin {
     clearFaviconCache();
     clearFaviconRetryTimers();
     this.pipeline?.clear();
+    this.readingEditGuardTeardown?.();
+    this.readingEditGuardTeardown = null;
+    this.clearReadingEditRevertTimers();
     void import("./src/render/code-highlight")
       .then(({ disposeHighlighter }) => disposeHighlighter())
       .catch(() => {
@@ -628,6 +687,34 @@ export default class ObsidianPlumePlugin extends Plugin {
     }
   }
 
+  /**
+   * Desktop preview can read the editor buffer. Mobile preview must not:
+   * touching `view.editor` there leaves reading view and opens the editor.
+   */
+  private readViewTextWithoutStealingPreview(
+    view: MarkdownView,
+    path: string,
+    mode: ReturnType<MarkdownView["getMode"]>
+  ): string | null {
+    if (!(Platform.isMobile && mode === "preview")) {
+      return view.editor.getValue();
+    }
+    const live = this.previewSync.getLiveText(path, "");
+    if (live) {
+      return live;
+    }
+    const file = view.file;
+    if (file) {
+      void this.app.vault.cachedRead(file).then((disk) => {
+        if (view.file?.path !== path || view.getMode() !== "preview") {
+          return;
+        }
+        this.previewSync.setLiveText(path, disk);
+      });
+    }
+    return null;
+  }
+
   /** Detect source↔preview. Avoid any preview rebuild on clean toggles (no flash). */
   private syncMarkdownViewMode(view: MarkdownView): void {
     const file = view.file;
@@ -638,7 +725,12 @@ export default class ObsidianPlumePlugin extends Plugin {
     const path = file.path;
     const mode = view.getMode();
     const previous = this.markdownModeByView.get(view);
-    const text = view.editor.getValue();
+    // On mobile, reading `view.editor` while in preview switches the note into edit mode.
+    const text = this.readViewTextWithoutStealingPreview(view, path, mode);
+    if (text === null) {
+      this.markdownModeByView.set(view, { mode, sourcePath: path });
+      return;
+    }
     this.previewSync.setLiveText(path, text);
 
     const currentState: MarkdownViewState = { mode, sourcePath: path };
@@ -727,6 +819,100 @@ export default class ObsidianPlumePlugin extends Plugin {
     }, ObsidianPlumePlugin.MODE_SYNC_RETRY_MS);
   }
 
+  /**
+   * Phone reading zoom. A style tag sets `zoom` on `.markdown-reading-view`
+   * and sizes the column to the screen, the same arrangement as a reading-view
+   * zoom control. The computer does not get the tag.
+   */
+  applyMobileReadingScale(): void {
+    const raw = this.settings.mobileReadingScale;
+    const percent = Math.min(150, Math.max(60, Number.isFinite(raw) ? Math.round(raw) : 100));
+    this.settings.mobileReadingScale = percent;
+    if (!this.phoneApp()) {
+      this.clearMobileReadingStyle();
+      return;
+    }
+    const doc = document;
+    const style = this.mobileReadingStyle ?? doc.createElement("style");
+    style.id = "plume-mobile-reading";
+    style.textContent = mobileReadingCss(percent / 100, window.innerWidth);
+    if (!style.isConnected) {
+      (doc.head || doc.documentElement).appendChild(style);
+    }
+    this.mobileReadingStyle = style;
+  }
+
+  private phoneApp(): boolean {
+    return Platform.isMobile
+      || document.body.classList.contains("is-mobile")
+      || document.body.classList.contains("is-phone");
+  }
+
+  private clearMobileReadingStyle(): void {
+    this.mobileReadingStyle?.remove();
+    this.mobileReadingStyle = null;
+  }
+
+  syncReadingEditGuard(): void {
+    this.readingEditGuardTeardown?.();
+    this.readingEditGuardTeardown = null;
+    this.clearReadingEditRevertTimers();
+    if (!this.settings.blockReadingTapEdit) {
+      return;
+    }
+    const doc = this.app.workspace.containerEl?.ownerDocument ?? window.document;
+    this.readingEditGuardTeardown = installReadingEditGuard(doc, {
+      onFingerDoubleTap: (leafEl) => {
+        const view = this.markdownViewForLeaf(leafEl);
+        if (view) {
+          this.scheduleReadingRevert(view);
+        }
+      },
+      onOutsidePointerDown: () => {
+        this.clearReadingEditRevertTimers();
+      }
+    });
+  }
+
+  private clearReadingEditRevertTimers(): void {
+    for (const timer of this.readingEditRevertTimers) {
+      window.clearTimeout(timer);
+    }
+    this.readingEditRevertTimers = [];
+  }
+
+  private markdownViewForLeaf(leafEl: Element): MarkdownView | null {
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView)) {
+        continue;
+      }
+      if (
+        view.containerEl === leafEl
+        || leafEl.contains(view.containerEl)
+        || view.containerEl.contains(leafEl)
+      ) {
+        return view;
+      }
+    }
+    return null;
+  }
+
+  private scheduleReadingRevert(view: MarkdownView): void {
+    this.clearReadingEditRevertTimers();
+    const restore = (): void => {
+      if (!this.settings.blockReadingTapEdit || view.getMode() === "preview") {
+        return;
+      }
+      const state = view.getState();
+      void view.setState({ ...state, mode: "preview" }, { history: false });
+    };
+    restore();
+    for (const delay of [32, 120]) {
+      this.readingEditRevertTimers.push(window.setTimeout(restore, delay));
+    }
+  }
+
   async loadSettings(): Promise<void> {
     const stored = (await this.loadData()) as Partial<FileTreePluginSettings> | null;
     const storedLanguage = stored?.settingsLanguage;
@@ -755,13 +941,25 @@ export default class ObsidianPlumePlugin extends Plugin {
       await this.saveData(this.settings);
       await this.applyShikiThemeSettings();
     }
+    this.applySyntaxFlags();
   }
 
   async saveSettings(): Promise<void> {
+    this.applySyntaxFlags();
     this.nestedParseCache.clear();
     this.parseCacheByPath.clear();
     await this.applyShikiThemeSettings();
     await this.saveData(this.settings);
+  }
+
+  private applySyntaxFlags(): void {
+    setSyntaxFlags({
+      containers: this.settings.enableContainers,
+      code: this.settings.enableCode,
+      embeds: this.settings.enableEmbeds,
+      inline: this.settings.enableInline,
+      attrs: this.settings.enableAttrs
+    });
   }
 
   /** Soft-refresh Plume hosts after settings that affect rendered icons/blocks. */
@@ -830,7 +1028,7 @@ export default class ObsidianPlumePlugin extends Plugin {
       return cached.blocks;
     }
 
-    const blocks = parseAllBlocks(text, this.settings.defaultIconMode);
+    const blocks = filterBlocks(parseAllBlocks(text, this.settings.defaultIconMode));
     this.parseCacheByPath.set(sourcePath, { text, blocks });
     while (this.parseCacheByPath.size > ObsidianPlumePlugin.MAX_PARSE_CACHE_ENTRIES) {
       const oldest = this.parseCacheByPath.keys().next().value as string | undefined;
@@ -849,7 +1047,7 @@ export default class ObsidianPlumePlugin extends Plugin {
       this.nestedParseCache.set(key, hit);
       return hit;
     }
-    const blocks = parseAllBlocks(text, this.settings.defaultIconMode);
+    const blocks = filterBlocks(parseAllBlocks(text, this.settings.defaultIconMode));
     this.nestedParseCache.set(key, blocks);
     while (this.nestedParseCache.size > ObsidianPlumePlugin.MAX_NESTED_PARSE_CACHE_ENTRIES) {
       const oldest = this.nestedParseCache.keys().next().value as string | undefined;
@@ -1172,6 +1370,33 @@ class PlumeSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName(t.mobileReadingScale)
+      .setDesc(t.mobileReadingScaleDesc)
+      .addSlider((slider) => {
+        slider
+          .setLimits(60, 150, 5)
+          .setValue(this.plugin.settings.mobileReadingScale)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.mobileReadingScale = value;
+            this.plugin.applyMobileReadingScale();
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName(t.blockReadingTapEdit)
+      .setDesc(t.blockReadingTapEditDesc)
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.blockReadingTapEdit);
+        toggle.onChange(async (value) => {
+          this.plugin.settings.blockReadingTapEdit = value;
+          await this.plugin.saveSettings();
+          this.plugin.syncReadingEditGuard();
+        });
+      });
+
+    new Setting(containerEl)
       .setName(t.debugRender)
       .setDesc(t.debugRenderDesc)
       .addToggle((toggle) => {
@@ -1181,6 +1406,42 @@ class PlumeSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
+
+    new Setting(containerEl)
+      .setName(t.vuepressPublicDir)
+      .setDesc(t.vuepressPublicDirDesc)
+      .addText((text) => {
+        text
+          .setPlaceholder("D:\\site\\docs\\.vuepress\\public")
+          .setValue(this.plugin.settings.vuepressPublicDir)
+          .onChange(async (value) => {
+            this.plugin.settings.vuepressPublicDir = value.trim();
+            await this.plugin.saveSettings();
+          });
+        text.inputEl.addClass("plume-public-dir-input");
+      });
+
+    new Setting(containerEl).setName(t.syntax).setHeading();
+    for (const item of [
+      ["enableContainers", t.enableContainers, t.enableContainersDesc],
+      ["enableCode", t.enableCode, t.enableCodeDesc],
+      ["enableEmbeds", t.enableEmbeds, t.enableEmbedsDesc],
+      ["enableInline", t.enableInline, t.enableInlineDesc],
+      ["enableAttrs", t.enableAttrs, t.enableAttrsDesc]
+    ] as const) {
+      const [key, name, desc] = item;
+      new Setting(containerEl)
+        .setName(name)
+        .setDesc(desc)
+        .addToggle((toggle) => {
+          toggle.setValue(this.plugin.settings[key]);
+          toggle.onChange(async (value) => {
+            this.plugin.settings[key] = value;
+            await this.plugin.saveSettings();
+            this.plugin.softRefreshOpenMarkdownFiles();
+          });
+        });
+    }
 
     new Setting(containerEl).setName(t.codeHighlighting).setHeading();
     containerEl.createEl("p", {

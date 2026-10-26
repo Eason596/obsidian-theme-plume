@@ -1,5 +1,6 @@
 /**
  * Port of vuepress-theme-plume plugin-md-power npmToPreset (MIT).
+ * Default tab order matches docs/.vuepress/theme.ts `markdown.npmTo`.
  */
 
 export type NpmToPackageManager = "npm" | "pnpm" | "yarn" | "bun" | "deno";
@@ -53,7 +54,7 @@ export const BOOL_FLAGS: string[] = [
   "--global"
 ];
 
-export const DEFAULT_TABS: NpmToPackageManager[] = ["npm", "pnpm", "yarn"];
+export const DEFAULT_TABS: NpmToPackageManager[] = ["pnpm", "yarn", "npm"];
 
 export const MANAGERS_CONFIG: CommandConfigs = {
   install: {

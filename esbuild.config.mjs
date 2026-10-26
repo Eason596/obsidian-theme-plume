@@ -9,7 +9,8 @@ const shared = {
   target: "es2020",
   sourcemap: isProduction ? false : "inline",
   minify: isProduction,
-  logLevel: "info"
+  logLevel: "info",
+  loader: { ".css": "text" }
 };
 
 const mainContext = await esbuild.context({
@@ -19,6 +20,12 @@ const mainContext = await esbuild.context({
   external: [
     "obsidian",
     "electron",
+    "fs",
+    "fs/promises",
+    "node:fs",
+    "node:fs/promises",
+    "node:path",
+    "path",
     "@codemirror/state",
     "@codemirror/view",
     "@codemirror/language",

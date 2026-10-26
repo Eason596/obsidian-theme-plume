@@ -5,5 +5,5 @@
   "minAppVersion": "1.5.0",
   "description": "Render VuePress Theme Plume markdown containers and embeds (file-tree, tabs, table, npm-to, qrcode, pdf, video, cards, and more).",
   "author": "Eason596",
-  "isDesktopOnly": true
+  "isDesktopOnly": false
 }

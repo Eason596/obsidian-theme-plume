@@ -577,29 +577,26 @@ const answer = 42
 ---
 
 <a id="16-链接卡片--link-card"></a>
-## 16. 链接卡片 `::: link-card`
+## 16. 链接卡片 `<LinkCard>`
 
-::: link-card href="https://obsidian.md" title="Obsidian 官网" icon="external-link" description="个人知识库的瑞士军刀"
-:::
+<LinkCard href="https://obsidian.md" title="Obsidian 官网" icon="external-link" description="个人知识库的瑞士军刀" />
 
-`href` 也可裸写位置参数：
+地址写在 `href` 上：
 
-::: link-card https://github.com title="GitHub" icon="github"
-:::
+<LinkCard href="https://github.com" title="GitHub" icon="github" />
 
 `description` 写在 body（支持 Markdown），优先级低于 `description=` 属性：
 
-::: link-card href="我的笔记" title="跳到笔记" icon="file-text"
+<LinkCard href="我的笔记" title="跳到笔记" icon="file-text">
 这是一段**多行**描述，可以写 markdown。
-:::
+</LinkCard>
 
 ---
 
 <a id="17-图片卡片--image-card"></a>
-## 17. 图片卡片 `::: image-card`
+## 17. 图片卡片 `<ImageCard>`
 
-::: image-card image="https://picsum.photos/id/1015/600/400" title="星空" author="John" date="2025-06-01" width="600" center
-:::
+<ImageCard image="https://picsum.photos/id/1015/600/400" title="星空" author="John" date="2025-06-01" width="600" center />
 
 ---
 
@@ -684,50 +681,46 @@ fn main() {
 ### 图片瀑布
 
 ::: card-masonry cols=3
-::: image-card image="https://picsum.photos/id/1015/600/400" title="山涧溪流" author="Unsplash" date="2024-03-12"
+<ImageCard image="https://picsum.photos/id/1015/600/400" title="山涧溪流" author="Unsplash" date="2024-03-12">
 清晨的山谷里，溪水从石缝中流出，带着冷冽的雾气。
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/1025/600/700" title="小猴沉思" author="Picsum" date="2023-11-04"
-:::
+<ImageCard image="https://picsum.photos/id/1025/600/700" title="小猴沉思" author="Picsum" date="2023-11-04" />
 
-::: image-card image="https://picsum.photos/id/1043/600/500" title="桥与晨雾" author="Anonymous" date="2024-01-20" href="https://picsum.photos/id/1043"
+<ImageCard image="https://picsum.photos/id/1043/600/500" title="桥与晨雾" author="Anonymous" date="2024-01-20" href="https://picsum.photos/id/1043">
 雾气漫过老桥，远处的灯还没熄。
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/1059/600/800" title="林间小路" author="Unsplash"
+<ImageCard image="https://picsum.photos/id/1059/600/800" title="林间小路" author="Unsplash">
 落叶铺满整条小路，没有尽头。
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/106/600/400" title="花田" date="2024-05-08"
-:::
+<ImageCard image="https://picsum.photos/id/106/600/400" title="花田" date="2024-05-08" />
 
-::: image-card image="https://picsum.photos/id/1074/600/600" title="雪原" author="Photographer" date="2025-12-25"
+<ImageCard image="https://picsum.photos/id/1074/600/600" title="雪原" author="Photographer" date="2025-12-25">
 极北的雪，安静得能听见自己的呼吸。
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/110/600/900" title="峡谷俯瞰" author="John Doe" date="2024-08-15"
+<ImageCard image="https://picsum.photos/id/110/600/900" title="峡谷俯瞰" author="John Doe" date="2024-08-15">
 站在悬崖边，风把所有声音都带走了。
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/1084/600/450" title="海岸黄昏"
-:::
+<ImageCard image="https://picsum.photos/id/1084/600/450" title="海岸黄昏" />
 
-::: image-card image="https://picsum.photos/id/1080/600/600" title="樱桃" author="Studio" date="2025-04-01" href="https://picsum.photos"
+<ImageCard image="https://picsum.photos/id/1080/600/600" title="樱桃" author="Studio" date="2025-04-01" href="https://picsum.photos">
 盘子里的几颗樱桃，红得发亮。
-:::
+</ImageCard>
 
 :::
 
 ---
 
 <a id="19-仓库卡片--repo-card"></a>
-## 19. 仓库卡片 `::: repo-card`
+## 19. 仓库卡片 `<RepoCard>`
 
 需联网请求 GitHub / Gitee API（`示例.md` 未收录，Obsidian 扩展）：
 
-::: repo-card repo="pengzhanbo/vuepress-theme-plume" provider="github"
-:::
+<RepoCard repo="pengzhanbo/vuepress-theme-plume" provider="github" />
 
 ---
 

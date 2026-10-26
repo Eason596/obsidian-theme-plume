@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseAllBlocks, parseCollapseRawContent, parseFieldContent, parseFileTreeContentWithFence, parseFileTreeRawContent, parsePromptContainerHeader, parseTabsRawContent } from "./parser";
+import { parseAllBlocks, parseCollapseRawContent, parseFieldContent, parseFileTreeContentWithFence, parseFileTreeRawContent, parsePromptContainerHeader, parseStepsRawContent, parseTabsRawContent } from "./parser";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const complexPath = join(__dirname, "__fixtures__", "plume-complex-test.md");
@@ -210,12 +210,136 @@ x
     expect((children[1].attrs as { fullname?: boolean }).fullname).toBe(true);
   });
 
+  it("leaves website-unsupported colon cards as plain text", () => {
+    const md = `::: link-card href="https://example.com" title="Docs"
+:::
+
+::: image-card image="/images/demo.png" title="示例"
+:::
+
+::: repo-card repo="vuepress/core"
+:::`;
+    const types = parseAllBlocks(md).map((block) => block.type);
+    expect(types).not.toContain("link-card");
+    expect(types).not.toContain("image-card");
+    expect(types).not.toContain("repo-card");
+  });
+
   it("parses Vue LinkCard body closed on the same line", () => {
     const md = `<LinkCard title="Docs" href="https://example.com">
   **Rich** description</LinkCard>`;
     const block = parseAllBlocks(md)[0];
     expect(block?.type).toBe("link-card");
     expect(block.rawContent).toBe("  **Rich** description");
+  });
+
+  it("parses a multi-line ImageCard opening tag", () => {
+    const md = `<ImageCard
+  image="/images/demo.png"
+  title="示例"
+/>`;
+    const block = parseAllBlocks(md)[0];
+    expect(block?.type).toBe("image-card");
+    expect(block?.startLine).toBe(0);
+    expect(block?.endLine).toBe(3);
+    const attrs = block!.attrs as { image?: string; title?: string };
+    expect(attrs.image).toBe("/images/demo.png");
+    expect(attrs.title).toBe("示例");
+    expect(block?.rawContent).toBe("");
+  });
+
+  it("keeps quoted > inside a multi-line card tag", () => {
+    const md = `<Card
+  title="a > b"
+>
+body
+</Card>`;
+    const block = parseAllBlocks(md)[0];
+    expect(block?.type).toBe("card");
+    expect((block!.attrs as { title?: string }).title).toBe("a > b");
+    expect(block?.rawContent).toBe("body");
+  });
+
+  it("parses a multi-line card nested in a card grid", () => {
+    const md = `<CardGrid cols="2">
+  <Card
+    title="内层"
+  >
+    正文
+  </Card>
+</CardGrid>`;
+    const grid = parseAllBlocks(md)[0];
+    expect(grid?.type).toBe("card-grid");
+    const child = parseAllBlocks(grid!.rawContent)[0];
+    expect(child?.type).toBe("card");
+    expect((child!.attrs as { title?: string }).title).toBe("内层");
+    expect(child?.rawContent.trim()).toBe("正文");
+  });
+
+  it("does not absorb a following container when a card tag is unclosed", () => {
+    const md = `<ImageCard
+  image="/images/demo.png"
+
+::: tip
+hello
+:::`;
+    const blocks = parseAllBlocks(md);
+    expect(blocks.some((block) => block.type === "image-card")).toBe(false);
+    const tip = blocks.find((block) => block.type === "prompt");
+    expect((tip?.attrs as { type?: string } | undefined)?.type).toBe("tip");
+  });
+
+  it("parses the alignment baseline note", () => {
+    const md = readFileSync(
+      join(__dirname, "..", "examples", "alignment", "notes", "basic.md"),
+      "utf8"
+    );
+    const cards = parseAllBlocks(md).filter((block) => block.type === "image-card");
+    expect(cards).toHaveLength(1);
+    expect((cards[0]!.attrs as { image?: string; title?: string }).image).toBe("/images/demo.png");
+    expect((cards[0]!.attrs as { title?: string }).title).toBe("示例");
+  });
+
+  it("keeps nested cards, tabs, prompts, collapse, and steps intact", () => {
+    const md = readFileSync(
+      join(__dirname, "..", "examples", "alignment", "notes", "nested.md"),
+      "utf8"
+    );
+    const top = parseAllBlocks(md);
+    expect(top.map((block) => block.type)).toEqual(["card-grid"]);
+
+    const cards = parseAllBlocks(top[0]!.rawContent);
+    expect(cards.map((block) => block.type)).toEqual(["card", "card"]);
+
+    const tabs = parseAllBlocks(cards[0]!.rawContent);
+    expect(tabs.map((block) => block.type)).toEqual(["tabs"]);
+    const tabItems = parseTabsRawContent(tabs[0]!.rawContent);
+    expect(tabItems.map((tab) => tab.title)).toEqual(["说明", "列项"]);
+    const tip = parseAllBlocks(tabItems[0]!.content).find((block) => block.type === "prompt");
+    expect((tip?.attrs as { type?: string } | undefined)?.type).toBe("tip");
+    expect(tip?.rawContent).toContain("@tab 假的");
+    expect(tip?.rawContent).toContain("```ts");
+
+    const second = parseAllBlocks(cards[1]!.rawContent);
+    expect(second.map((block) => block.type)).toEqual(["collapse", "image-card"]);
+    const collapse = parseCollapseRawContent(second[0]!.rawContent);
+    expect(collapse.items).toHaveLength(1);
+    expect(collapse.items[0]?.titleLines.join("")).toContain("展开后是步骤");
+    const steps = parseAllBlocks(collapse.items[0]!.body);
+    expect(steps.map((block) => block.type)).toEqual(["steps"]);
+    expect(parseStepsRawContent(steps[0]!.rawContent)).toHaveLength(2);
+    expect((second[1]!.attrs as { title?: string }).title).toBe("嵌套图片");
+  });
+
+  it("ignores a multi-line card sample inside a fence", () => {
+    const md = `\`\`\`md
+<ImageCard
+  image="/images/demo.png"
+/>
+\`\`\`
+# After`;
+    const blocks = parseAllBlocks(md);
+    expect(blocks.some((block) => block.type === "image-card")).toBe(false);
   });
 
   it("parses ::: table attrs", () => {

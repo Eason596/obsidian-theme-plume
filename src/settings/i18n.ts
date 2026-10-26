@@ -26,7 +26,31 @@ const EN_MESSAGES = {
   lightThemeDesc: "Used when Obsidian is in light mode.",
   darkTheme: "Dark theme",
   darkThemeDesc: "Used when Obsidian is in dark mode.",
-  themeLoadFailed: "Failed to load the Shiki theme list. See the developer console."
+  themeLoadFailed: "Failed to load the Shiki theme list. See the developer console.",
+  vuepressPublicDir: "VuePress public directory",
+  vuepressPublicDirDesc: "Folder that receives vault images/ and assets/, usually docs/.vuepress/public.",
+  publishAssets: "Copy shared assets",
+  publishAssetsDesc: "Copy vault images/ and assets/ into the VuePress public directory, keeping the same relative paths.",
+  publishAssetsMissingDir: "Set the VuePress public directory in plugin settings first.",
+  publishAssetsFailed: "Could not copy shared assets.",
+  publishAssetsDone: "Copied {count} shared files.",
+  syntax: "Syntax",
+  enableContainers: "Containers",
+  enableContainersDesc: "Render shared containers such as cards, tabs, steps, collapse, and prompts.",
+  enableCode: "Code extensions",
+  enableCodeDesc: "Render file trees, code trees, npm-to, and Shiki code decorations.",
+  enableEmbeds: "Embeds",
+  enableEmbedsDesc: "Render PDF, video, and QR code embeds.",
+  enableInline: "Inline syntax",
+  enableInlineDesc: "Render subscripts, superscripts, footnotes, annotations, abbreviations, icons, and badges.",
+  enableAttrs: "Attribute syntax",
+  enableAttrsDesc: "Rewrite word{.class} into a span. Leave this off unless a note needs it.",
+  blockReadingTapEdit: "Double tap stays in reading view",
+  blockReadingTapEditDesc:
+    "On a phone or tablet, a double tap in reading view no longer opens the editor. Switch with the button in the note's top-right corner. Links, checkboxes, and scrolling still work.",
+  mobileReadingScale: "Phone reading scale",
+  mobileReadingScaleDesc:
+    "Zooms the reading view on a phone or tablet. 100% is unchanged. The column stays the width of the screen while the type scales. The computer ignores this."
 } as const;
 
 type SettingsMessages = { [K in keyof typeof EN_MESSAGES]: string };
@@ -57,7 +81,31 @@ const ZH_CN_MESSAGES: SettingsMessages = {
   lightThemeDesc: "Obsidian 使用亮色模式时采用。",
   darkTheme: "暗色主题",
   darkThemeDesc: "Obsidian 使用暗色模式时采用。",
-  themeLoadFailed: "Shiki 主题列表加载失败，请查看开发者控制台。"
+  themeLoadFailed: "Shiki 主题列表加载失败，请查看开发者控制台。",
+  vuepressPublicDir: "VuePress 公共目录",
+  vuepressPublicDirDesc: "接收库内 images/ 与 assets/ 的目录，一般是 docs/.vuepress/public。",
+  publishAssets: "复制共享附件",
+  publishAssetsDesc: "把库里的 images/ 和 assets/ 按相同相对路径复制到 VuePress 公共目录。",
+  publishAssetsMissingDir: "请先在插件设置里填写 VuePress 公共目录。",
+  publishAssetsFailed: "共享附件复制失败。",
+  publishAssetsDone: "已复制 {count} 个共享文件。",
+  syntax: "语法",
+  enableContainers: "容器",
+  enableContainersDesc: "渲染卡片、选项卡、步骤、折叠、提示等两边共用的容器。",
+  enableCode: "代码扩展",
+  enableCodeDesc: "渲染文件树、代码树、npm-to，以及 Shiki 代码装饰。",
+  enableEmbeds: "嵌入",
+  enableEmbedsDesc: "渲染 PDF、视频和二维码。",
+  enableInline: "行内语法",
+  enableInlineDesc: "渲染上下标、脚注、注释、缩写、图标和徽章。",
+  enableAttrs: "属性语法",
+  enableAttrsDesc: "把 word{.class} 改写成带类名的文字。只有笔记需要时再打开。",
+  blockReadingTapEdit: "双击不进编辑",
+  blockReadingTapEditDesc:
+    "手机或平板上，在阅读视图里双击不再进入编辑。要切换模式，用笔记右上角的按钮。链接、勾选和滑动不受影响。",
+  mobileReadingScale: "手机阅读缩放",
+  mobileReadingScaleDesc:
+    "在手机和平板上缩放阅读视图。100% 是原来的大小。版心保持屏幕那么宽，字随比例放大或缩小。电脑不受影响。"
 };
 
 export function getSettingsMessages(language: SettingsLanguage): SettingsMessages {

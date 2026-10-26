@@ -1,9 +1,10 @@
-import { App, Component, MarkdownPostProcessorContext, Notice, setIcon } from "obsidian";
+import { App, Component, MarkdownPostProcessorContext, Notice, setIcon, TFile } from "obsidian";
 import { renderPlumeMarkdown, type PlumeMarkdownContext } from "./markdown/plume-markdown";
 import {
   applyVuepressMarkdownTransforms,
   sectionHasPlumeContainers
 } from "./render/markdown-transforms";
+import { getSyntaxFlags } from "./render/syntax-flags";
 import { resolveNodeIcon } from "./icons";
 import { registerBlockRenderer } from "./render/block-registry";
 import { prepareIconifyIconElement, processIconifyIcons } from "./render/iconify-online";
@@ -42,6 +43,7 @@ import {
 import { renderTabbedContainer } from "./render/tabbed-container";
 import { renderInlineMarkdownInto } from "./render/inline";
 import { applyInlineIcon as applySharedInlineIcon } from "./render/inline-icon";
+import { vaultPathForPublicAsset } from "./render/public-asset";
 import {
   classifyLinkHref,
   safeImageUrl,
@@ -120,6 +122,7 @@ import {
   normalizeTableCopy
 } from "./render/table-block";
 import {
+  DEFAULT_TABS,
   npmToCodeTabsMarkdown,
   type NpmToPackageManager
 } from "./render/npm-to";
@@ -1894,9 +1897,7 @@ async function renderNpmToBlock(
   attrs: NpmToContainerAttrs,
   ctx: BlockRenderContext
 ): Promise<void> {
-  const tabs = (attrs.tabs?.length
-    ? attrs.tabs
-    : ["npm", "pnpm", "yarn"]) as NpmToPackageManager[];
+  const tabs = (attrs.tabs?.length ? attrs.tabs : [...DEFAULT_TABS]) as NpmToPackageManager[];
   const md = npmToCodeTabsMarkdown(rawContent, tabs);
   if (!md) {
     container.createEl("p", {
@@ -2064,6 +2065,13 @@ function resolveImageSrc(
   if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|data:)/i.test(src)) {
     return safeImageUrl(src) ?? "";
   }
+  // Site public paths must hit one vault file. Do not fall back to a same-name attachment.
+  const mapped = vaultPathForPublicAsset(src);
+  if (mapped) {
+    const direct = ctx.app.vault.getAbstractFileByPath(mapped);
+    if (direct instanceof TFile) return ctx.app.vault.getResourcePath(direct);
+    return "";
+  }
   // Vault-relative path — resolve through Obsidian.
   const file = ctx.app.metadataCache.getFirstLinkpathDest(src, ctx.sourcePath);
   if (file) return ctx.app.vault.getResourcePath(file);
@@ -2092,7 +2100,16 @@ async function renderImageCardBlock(
   ctx: BlockRenderContext
 ): Promise<void> {
   const imageSrc = resolveImageSrc(attrs.image, ctx);
-  if (!imageSrc) return;
+  if (!imageSrc) {
+    const mapped = vaultPathForPublicAsset(attrs.image);
+    if (mapped) {
+      container.createEl("p", {
+        cls: "plume-render-error",
+        text: `ImageCard: vault file not found for ${attrs.image} (expected ${mapped})`
+      });
+    }
+    return;
+  }
 
   const wrapper = container.createDiv({
     cls: attrs.center ? "vp-image-card center" : "vp-image-card"
@@ -2741,6 +2758,7 @@ export async function processBadges(
   rootElement: HTMLElement,
   markdownContext?: PlumeMarkdownContext
 ): Promise<void> {
+  if (!getSyntaxFlags().inline) return;
   // Convert remaining raw <badge> nodes first (always), then optionally
   // re-render plain sections whose markdown still contains <Badge> tags that
   // Obsidian stripped before the DOM post-processor.
@@ -2792,7 +2810,9 @@ export async function processBadges(
     return;
   }
 
-  const transformed = applyVuepressMarkdownTransforms(sectionMarkdown);
+  const transformed = applyVuepressMarkdownTransforms(sectionMarkdown, {
+    documentText: sectionInfo.text
+  });
   if (transformed === sectionMarkdown) {
     return;
   }
@@ -2843,6 +2863,7 @@ export function processGithubAlerts(rootElement: HTMLElement): void {
 }
 
 export function processPlots(rootElement: HTMLElement, sourceHint?: string): void {
+  if (!getSyntaxFlags().inline) return;
   // Fast path: skip TreeWalker when the note/section cannot contain plot markers.
   if (sourceHint !== undefined) {
     if (!sourceHint.includes("!!")) return;

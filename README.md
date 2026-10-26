@@ -36,7 +36,7 @@ This repository ports [vuepress-theme-plume](https://github.com/pengzhanbo/vuepr
 
 ## Install
 
-Desktop Obsidian only (`isDesktopOnly`: QR embeds load a sibling `qrcode-lib.cjs` via Electron `require`).
+Desktop and mobile can enable the plugin. QR embeds and copying shared assets need the desktop filesystem and are skipped on mobile. A double tap in mobile reading view stays in reading view; use the button at the note's top-right to switch. Turn this off in the plugin settings.
 
 ### Community plugins (recommended)
 
@@ -78,7 +78,7 @@ Most features work **offline by default**. The following touch the network only 
 
 | Feature | Remote service | When |
 |------|----------|----------|
-| `::: repo-card` | GitHub / Gitee REST API | Rendering a repo-card with a repository URL |
+| `<RepoCard>` | GitHub / Gitee REST API | Rendering a RepoCard with a repository URL |
 | File-tree / code-tree `colored` icons | [Iconify API](https://api.iconify.design) | Iconify IDs not covered by the offline pack |
 | Card `icon=` remote images | User-specified image URL | Cards with http(s) icons |
 | `link-icons: true` | Google Favicon service | Note enables external-link favicons |
@@ -102,7 +102,7 @@ Largely aligned with [Plume docs](https://theme-plume.vuejs.press/); the table m
 | Prompts | `::: note` / `info` / `tip` / `warning` / `caution` / `danger` / `important` / `details` | `danger` ≈ `caution`; `details` supports `{open}`; also GitHub Alerts `> [!NOTE]` |
 | Cards | `::: card` / `card-grid` / `card-masonry` | `icon=` Lucide, image URL, or Iconify (incl. `twemoji:`); masonry `cols="{sm,md,lg}"` |
 | Collapse | `::: collapse` | List items as panels; `:+` open / `:-` closed; `accordion`, `expand` |
-| Link cards | `::: repo-card` / `link-card` / `image-card` | `repo-card` calls GitHub / Gitee APIs (network) |
+| Link cards | `<RepoCard>` / `<LinkCard>` / `<ImageCard>` | `RepoCard` calls GitHub / Gitee APIs (network) |
 | Table | `::: table` | `title` / `align` / `copy` / `max-content` / `full-width` / `hl-rows`/`hl-cols`/`hl-cells` |
 | QR code | `@[qrcode](text)` / `::: qrcode` | Local generation; `card`, `title`, `align`, `logo`, … |
 | Media | `@[pdf]` / `@[bilibili]` / `@[youtube]` | iframe; PDF vault path or URL; videos default 16:9 |

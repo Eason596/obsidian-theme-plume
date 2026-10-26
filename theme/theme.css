@@ -1,0 +1,566 @@
+/*
+ * Plume companion theme for Obsidian.
+ * Colors and type scale follow vuepress-theme-plume 1.0.0-rc.214
+ * (theme/src/client/styles/vars.css and content.css), MIT License.
+ * Loaded only while this theme is selected. The plugin does not paint these colors.
+ */
+
+body {
+  --vp-c-bg: #fff;
+  --vp-c-bg-alt: #f6f6f7;
+  --vp-c-bg-soft: #f6f6f7;
+  --vp-c-bg-safe: #f6f8fa;
+  --vp-c-border: #c2c2c4;
+  --vp-c-divider: #e2e2e3;
+  --vp-c-text-1: rgb(60 60 67);
+  --vp-c-text-2: rgb(60 60 67 / 0.78);
+  --vp-c-text-3: rgb(60 60 67 / 0.72);
+  --vp-c-gray-soft: rgb(142 150 170 / 0.14);
+  --vp-c-default-soft: var(--vp-c-gray-soft);
+  --vp-c-brand-1: #3f7189;
+  --vp-c-brand-2: #6aa1b7;
+  --vp-c-brand-soft: rgb(131 208 218 / 0.314);
+  --background-primary: var(--vp-c-bg);
+  --background-primary-alt: var(--vp-c-bg-alt);
+  --background-secondary: var(--vp-c-bg-alt);
+  --background-modifier-border: var(--vp-c-divider);
+  --text-normal: var(--vp-c-text-1);
+  --text-muted: var(--vp-c-text-2);
+  --text-faint: var(--vp-c-text-3);
+  --text-accent: var(--vp-c-brand-1);
+  --link-color: var(--vp-c-brand-1);
+  --link-color-hover: var(--vp-c-brand-2);
+  --interactive-accent: var(--vp-c-brand-1);
+  --font-text: var(--vp-font-family-base);
+  --vp-font-family-base:
+    "Inter",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    -apple-system,
+    blinkmacsystemfont,
+    sans-serif;
+  --vp-code-font-size: 0.875em;
+  --vp-font-family-mono:
+    ui-monospace,
+    "Menlo",
+    "Monaco",
+    "Consolas",
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+  --vp-shadow-1: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.06);
+  --vp-shadow-2: 0 3px 12px rgb(0 0 0 / 0.07), 0 1px 4px rgb(0 0 0 / 0.07);
+}
+
+body.theme-dark {
+  --vp-c-bg: #1b1b1f;
+  --vp-c-bg-alt: #161618;
+  --vp-c-bg-soft: #202127;
+  --vp-c-bg-safe: #202127;
+  --vp-c-border: #3c3f44;
+  --vp-c-divider: #2e2e32;
+  --vp-c-text-1: rgb(255 255 245 / 0.86);
+  --vp-c-text-2: rgb(235 235 245 / 0.6);
+  --vp-c-text-3: rgb(235 235 245 / 0.55);
+  --vp-c-gray-soft: rgb(101 117 133 / 0.16);
+  --vp-c-brand-1: #8cccd5;
+  --vp-c-brand-2: #6aa1b7;
+  --vp-c-brand-soft: rgb(131 208 218 / 0.2);
+  --vp-shadow-1: 0 1px 2px rgb(0 0 0 / 0.27), 0 1px 2px rgb(0 0 0 / 0.22);
+  --vp-shadow-2: 0 3px 12px rgb(0 0 0 / 0.3), 0 1px 4px rgb(0 0 0 / 0.27);
+}
+
+.markdown-preview-view {
+  --text-normal: var(--vp-c-text-1);
+  --text-muted: var(--vp-c-text-2);
+  --text-faint: var(--vp-c-text-3);
+  --text-accent: var(--vp-c-brand-1);
+  --link-color: var(--vp-c-brand-1);
+  --link-color-hover: var(--vp-c-brand-2);
+  --h1-color: var(--vp-c-text-1);
+  --h2-color: var(--vp-c-text-1);
+  --h3-color: var(--vp-c-text-1);
+  --h4-color: var(--vp-c-text-1);
+  --h5-color: var(--vp-c-text-1);
+  --h6-color: var(--vp-c-text-1);
+  --background-primary: var(--vp-c-bg);
+  --background-secondary: var(--vp-c-bg-alt);
+  --background-modifier-border: var(--vp-c-divider);
+  --code-normal: var(--vp-c-brand-1);
+  --code-background: var(--vp-c-default-soft);
+  background-color: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
+  font-family: var(--vp-font-family-base);
+}
+
+.markdown-preview-view .markdown-preview-sizer {
+  overflow-wrap: break-word;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > :is(h1, h2, h3, h4, h5, h6) {
+  position: relative;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+  overflow-wrap: break-word;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > h1 {
+  margin: 0 0 16px;
+  font-size: 28px;
+  line-height: 40px;
+  letter-spacing: -0.02em;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > h2 {
+  padding-top: 24px;
+  margin: 48px 0 16px;
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: -0.02em;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+/* The first h2 in the note, even when earlier sections are paragraphs. */
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section:has(> h2):not(
+    .markdown-preview-section:has(> h2) ~ .markdown-preview-section
+  )
+  > h2 {
+  padding-top: 12px;
+  margin-top: 32px;
+  border-top: none;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > h3 {
+  margin: 32px 0 16px;
+  font-size: 20px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > h4 {
+  margin: 24px 0 16px;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > :is(h5, h6) {
+  margin: 24px 0 16px;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > p {
+  margin: 16px 0;
+  line-height: 28px;
+  color: var(--vp-c-text-1);
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > blockquote {
+  position: relative;
+  padding: 8px 20px 8px 36px;
+  margin: 16px 0;
+  color: var(--vp-c-text-2);
+  background-color: var(--vp-c-default-soft);
+  border: none;
+  border-radius: 8px;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > blockquote
+  > p {
+  margin: 0;
+  font-size: 16px;
+  color: inherit;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6)
+  a {
+  font-weight: 500;
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > :is(p, ul, ol, blockquote)
+  a:hover {
+  color: var(--vp-c-brand-2);
+  text-underline-offset: 5px;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > :is(ul, ol) {
+  padding-left: 1.25rem;
+  margin: 16px 0;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > ul {
+  list-style: disc;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > ol {
+  list-style: decimal;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  li
+  + li {
+  margin-top: 8px;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  li
+  > :is(ol, ul) {
+  margin: 8px 0 0;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > table {
+  display: block;
+  max-width: 100%;
+  margin: 20px 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > table
+  :is(th, td) {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: 1px solid var(--vp-c-divider);
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > table
+  th {
+  font-weight: 600;
+  color: var(--vp-c-text-2);
+  text-align: left;
+  background-color: var(--vp-c-bg-soft);
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > table
+  tr:nth-child(2n) {
+  background-color: var(--vp-c-bg-soft);
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > hr {
+  margin: 16px 0;
+  border: none;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  :is(p, li, td, th, blockquote)
+  > code {
+  padding: 3px 6px;
+  font-size: var(--vp-code-font-size);
+  color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-default-soft);
+  border-radius: 4px;
+}
+
+.markdown-preview-view
+  .markdown-preview-sizer
+  > .markdown-preview-section
+  > :is(h1, h2, h3, h4, h5, h6)
+  > code {
+  font-size: 0.9em;
+}
+
+/* Live preview: scale only. Do not restyle the editor background. */
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header {
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-1 {
+  font-size: 28px;
+  line-height: 40px;
+  letter-spacing: -0.02em;
+}
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-2 {
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: -0.02em;
+}
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-3 {
+  font-size: 20px;
+  line-height: 28px;
+}
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-quote {
+  color: var(--vp-c-text-2);
+}
+
+.markdown-source-view.mod-cm6 .cm-inline-code {
+  color: var(--vp-c-brand-1);
+}
+
+/* Code blocks follow the docs preset: mono stack, 0.875em. */
+.vp-code-features code {
+  font-family: var(--vp-font-family-mono);
+  font-size: var(--vp-code-font-size);
+}
+
+/*
+ * Nested component bodies use the same prose as .vp-doc.
+ * Titles, tab labels, and collapse headers stay on their own rules.
+ */
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab,
+  .obsidian-vuepress-steps > :where(ol, ul) > li
+) {
+  color: var(--vp-c-text-1);
+  font-size: 16px;
+  line-height: 28px;
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab
+) :is(h1, h2, h3, h4, h5, h6) {
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+  overflow-wrap: break-word;
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab
+) h2 {
+  padding-top: 24px;
+  margin: 48px 0 16px;
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: -0.02em;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab
+) h2:first-of-type {
+  padding-top: 12px;
+  margin-top: 32px;
+  border-top: none;
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab
+) h3 {
+  margin: 32px 0 16px;
+  font-size: 20px;
+  line-height: 28px;
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab,
+  .obsidian-vuepress-steps > :where(ol, ul) > li
+) p {
+  margin: 16px 0;
+  line-height: 28px;
+  color: var(--vp-c-text-1);
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab
+) :is(ul, ol) {
+  padding-left: 1.25rem;
+  margin: 16px 0;
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab
+) li + li {
+  margin-top: 8px;
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab,
+  .obsidian-vuepress-steps > :where(ol, ul) > li
+) :is(p, li, td, th, blockquote) > code {
+  padding: 3px 6px;
+  font-size: var(--vp-code-font-size);
+  color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-default-soft);
+  border-radius: 4px;
+}
+
+:is(
+  .vp-card-wrapper > .body,
+  .obsidian-vuepress-prompt-container .vp-custom-container-content,
+  .obsidian-vuepress-collapse .vp-collapse-content-inner,
+  .obsidian-vuepress-tabs .vp-tab
+) a {
+  font-weight: 500;
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.vp-card-wrapper {
+  gap: 16px;
+  margin: 16px 0;
+  border: 1px solid var(--vp-c-divider);
+  background-color: transparent;
+  box-shadow: var(--vp-shadow-1);
+}
+
+.vp-card-wrapper:hover {
+  border-color: var(--vp-c-divider);
+  box-shadow: var(--vp-shadow-2);
+}
+
+.vp-card-wrapper > .title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--vp-c-text-1);
+}
+
+.vp-card-wrapper > .body .markdown-rendered > :first-child,
+.obsidian-vuepress-tabs .vp-tab .markdown-rendered > :first-child,
+.obsidian-vuepress-collapse .vp-collapse-content-inner .markdown-rendered > :first-child,
+.obsidian-vuepress-prompt-container .vp-custom-container-content .markdown-rendered > :first-child {
+  margin-top: 0;
+}
+
+.vp-card-wrapper > .body .markdown-rendered > :last-child,
+.obsidian-vuepress-tabs .vp-tab .markdown-rendered > :last-child,
+.obsidian-vuepress-collapse .vp-collapse-content-inner .markdown-rendered > :last-child,
+.obsidian-vuepress-prompt-container .vp-custom-container-content .markdown-rendered > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview-view mark {
+  padding: 0 2px;
+  color: inherit;
+  background-color: var(--vp-c-brand-soft);
+  border-radius: 2px;
+}
+
+.vp-footnote {
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 24px;
+  color: var(--vp-c-text-2);
+}
+
+.vp-footnote-ref {
+  margin-left: 1px;
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+.markdown-preview-view .markdown-preview-sizer,
+.markdown-source-view.mod-cm6 .cm-sizer {
+  max-width: 48rem;
+}
+
+.markdown-source-view.mod-cm6 .cm-line:not(.HyperMD-codeblock) {
+  color: var(--vp-c-text-1);
+}
+
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-quote {
+  color: var(--vp-c-text-2);
+}
+
+.vp-annotation,
+abbr[title] {
+  text-decoration: underline dotted;
+  cursor: help;
+}

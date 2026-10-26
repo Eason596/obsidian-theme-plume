@@ -275,6 +275,28 @@ export interface FileTreePluginSettings {
   shikiThemeLight: string;
   /** Shiki theme when Obsidian is in dark mode (bundled theme id). */
   shikiThemeDark: string;
+  /** VuePress `docs/.vuepress/public` directory. Shared `images/` and `assets/` are copied here. */
+  vuepressPublicDir: string;
+  /** Shared `:::` containers such as cards, tabs, steps, and collapse. */
+  enableContainers: boolean;
+  /** File trees, code trees, npm-to, and Shiki code decorations. */
+  enableCode: boolean;
+  /** PDF, video, and QR embeds. */
+  enableEmbeds: boolean;
+  /** Sub, sup, footnotes, annotations, abbreviations, icons, and badges. */
+  enableInline: boolean;
+  /** `{.class}` on a word. Off until enabled, because it rewrites ordinary text. */
+  enableAttrs: boolean;
+  /**
+   * Finger double-tap in reading view stays in reading view.
+   * The note header button still switches mode.
+   */
+  blockReadingTapEdit: boolean;
+  /**
+   * Phone and tablet note zoom, in percent. 100 leaves the note at its normal size.
+   * The computer ignores this.
+   */
+  mobileReadingScale: number;
 }
 
 export const DEFAULT_SETTINGS: FileTreePluginSettings = {
@@ -285,7 +307,15 @@ export const DEFAULT_SETTINGS: FileTreePluginSettings = {
   tabsLazyPanels: false,
   debugRender: false,
   shikiThemeLight: "vitesse-light",
-  shikiThemeDark: "vitesse-dark"
+  shikiThemeDark: "vitesse-dark",
+  vuepressPublicDir: "",
+  enableContainers: true,
+  enableCode: true,
+  enableEmbeds: true,
+  enableInline: true,
+  enableAttrs: false,
+  blockReadingTapEdit: true,
+  mobileReadingScale: 100
 };
 
 export type SettingsLanguage = "zh-CN" | "en";

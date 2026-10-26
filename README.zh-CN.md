@@ -36,7 +36,7 @@
 
 ## 安装
 
-仅支持桌面版 Obsidian（`isDesktopOnly`：二维码通过 Electron `require` 加载同目录的 `qrcode-lib.cjs`）。
+桌面和手机都可以启用。二维码和「复制共享附件」依赖桌面文件系统，在手机上会跳过。手机阅读视图里双击不再进入编辑，切换模式用笔记右上角的按钮，可在插件设置里关闭。
 
 ### 社区插件（推荐）
 
@@ -78,7 +78,7 @@ npm run build
 
 | 功能 | 远程服务 | 何时触发 |
 |------|----------|----------|
-| `::: repo-card` | GitHub / Gitee REST API | 渲染含仓库 URL 的 repo-card 块 |
+| `<RepoCard>` | GitHub / Gitee REST API | 渲染含仓库 URL 的 RepoCard |
 | 文件树 / 代码树 `colored` 图标 | [Iconify API](https://api.iconify.design) | 离线包未覆盖的 Iconify 图标 ID |
 | 卡片 `icon=` 外链图片 | 用户指定的图片 URL | 渲染含 http(s) 图标的卡片 |
 | `link-icons: true` | Google Favicon 服务 | 笔记开启外链 favicon 时 |
@@ -102,7 +102,7 @@ npm run build
 | 提示 | `::: note` / `info` / `tip` / `warning` / `caution` / `danger` / `important` / `details` | `danger` 与 `caution` 同族；`details` 支持 `{open}` 默认展开；另支持 GitHub Alerts `> [!NOTE]` |
 | 卡片 | `::: card` / `card-grid` / `card-masonry` | `icon=` 支持 Lucide 名、图片 URL、Iconify（含 `twemoji:`）；masonry 支持 `cols="{sm,md,lg}"` |
 | 折叠 | `::: collapse` | 列表项为面板；`:+` 默认展开、`:-` 默认折叠；支持 `accordion`、`expand` |
-| 外链卡片 | `::: repo-card` / `link-card` / `image-card` | `repo-card` 会请求 GitHub / Gitee API（需网络） |
+| 外链卡片 | `<RepoCard>` / `<LinkCard>` / `<ImageCard>` | `RepoCard` 会请求 GitHub / Gitee API（需网络） |
 | 表格 | `::: table` | `title` / `align` / `copy` / `max-content` / `full-width` / `hl-rows`/`hl-cols`/`hl-cells` |
 | 二维码 | `@[qrcode](text)` / `::: qrcode` | 本地生成；支持 `card`、`title`、`align`、`logo` 等 |
 | 媒体嵌入 | `@[pdf]` / `@[bilibili]` / `@[youtube]` | iframe；PDF 支持库内路径或 URL；视频默认 16:9 |

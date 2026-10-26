@@ -9,3 +9,4 @@ Thumbs.db
 .env
 .env.*
 scripts/demo/.build-demo.mjs
+ALIGNMENT_PLAN.zh-CN.md

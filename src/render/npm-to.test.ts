@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { npmToCodeTabsMarkdown, parseLine } from "./npm-to";
+import { npmToCodeTabsMarkdown, parseLine, parseNpmToTabsAttr } from "./npm-to";
 
 describe("npm-to", () => {
+  it("uses the docs tab order when tabs are omitted", () => {
+    expect(parseNpmToTabsAttr("")).toEqual(["pnpm", "yarn", "npm"]);
+    expect(parseNpmToTabsAttr('tabs="npm,yarn"')).toEqual(["npm", "yarn"]);
+  });
+
   it("parses npm install -D line", () => {
     const parsed = parseLine("npm install -D vue");
     expect(parsed).toBeTruthy();

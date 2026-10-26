@@ -577,29 +577,26 @@ Card content goes here.
 ---
 
 <a id="16-链接卡片--link-card"></a>
-## 16. Link card `::: link-card`
+## 16. Link card `<LinkCard>`
 
-::: link-card href="https://obsidian.md" title="Obsidian" icon="external-link" description="The Swiss Army knife of personal knowledge bases"
-:::
+<LinkCard href="https://obsidian.md" title="Obsidian" icon="external-link" description="The Swiss Army knife of personal knowledge bases" />
 
-`href` can also be a bare positional argument:
+Put the address in `href`:
 
-::: link-card https://github.com title="GitHub" icon="github"
-:::
+<LinkCard href="https://github.com" title="GitHub" icon="github" />
 
 `description` in the body (Markdown supported) has lower priority than the `description=` attribute:
 
-::: link-card href="我的笔记" title="Jump to note" icon="file-text"
+<LinkCard href="我的笔记" title="Jump to note" icon="file-text">
 This is a **multi-line** description; you can write markdown.
-:::
+</LinkCard>
 
 ---
 
 <a id="17-图片卡片--image-card"></a>
-## 17. Image card `::: image-card`
+## 17. Image card `<ImageCard>`
 
-::: image-card image="https://picsum.photos/id/1015/600/400" title="Starry sky" author="John" date="2025-06-01" width="600" center
-:::
+<ImageCard image="https://picsum.photos/id/1015/600/400" title="Starry sky" author="John" date="2025-06-01" width="600" center />
 
 ---
 
@@ -684,50 +681,46 @@ fn main() {
 ### Image masonry
 
 ::: card-masonry cols=3
-::: image-card image="https://picsum.photos/id/1015/600/400" title="Mountain stream" author="Unsplash" date="2024-03-12"
+<ImageCard image="https://picsum.photos/id/1015/600/400" title="Mountain stream" author="Unsplash" date="2024-03-12">
 In the valley at dawn, water trickles from between the rocks, carrying a cold mist.
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/1025/600/700" title="Thoughtful monkey" author="Picsum" date="2023-11-04"
-:::
+<ImageCard image="https://picsum.photos/id/1025/600/700" title="Thoughtful monkey" author="Picsum" date="2023-11-04" />
 
-::: image-card image="https://picsum.photos/id/1043/600/500" title="Bridge in morning fog" author="Anonymous" date="2024-01-20" href="https://picsum.photos/id/1043"
+<ImageCard image="https://picsum.photos/id/1043/600/500" title="Bridge in morning fog" author="Anonymous" date="2024-01-20" href="https://picsum.photos/id/1043">
 Mist rolls over the old bridge; distant lights still glow.
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/1059/600/800" title="Forest path" author="Unsplash"
+<ImageCard image="https://picsum.photos/id/1059/600/800" title="Forest path" author="Unsplash">
 Fallen leaves cover the whole path with no end in sight.
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/106/600/400" title="Flower field" date="2024-05-08"
-:::
+<ImageCard image="https://picsum.photos/id/106/600/400" title="Flower field" date="2024-05-08" />
 
-::: image-card image="https://picsum.photos/id/1074/600/600" title="Snow plain" author="Photographer" date="2025-12-25"
+<ImageCard image="https://picsum.photos/id/1074/600/600" title="Snow plain" author="Photographer" date="2025-12-25">
 Snow in the far north — so quiet you can hear your own breath.
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/110/600/900" title="Canyon overlook" author="John Doe" date="2024-08-15"
+<ImageCard image="https://picsum.photos/id/110/600/900" title="Canyon overlook" author="John Doe" date="2024-08-15">
 Standing at the cliff edge, the wind carries every sound away.
-:::
+</ImageCard>
 
-::: image-card image="https://picsum.photos/id/1084/600/450" title="Coast at dusk"
-:::
+<ImageCard image="https://picsum.photos/id/1084/600/450" title="Coast at dusk" />
 
-::: image-card image="https://picsum.photos/id/1080/600/600" title="Cherries" author="Studio" date="2025-04-01" href="https://picsum.photos"
+<ImageCard image="https://picsum.photos/id/1080/600/600" title="Cherries" author="Studio" date="2025-04-01" href="https://picsum.photos">
 A few cherries on the plate, bright red.
-:::
+</ImageCard>
 
 :::
 
 ---
 
 <a id="19-仓库卡片--repo-card"></a>
-## 19. Repo card `::: repo-card`
+## 19. Repo card `<RepoCard>`
 
 Requires network access to GitHub / Gitee API (not in `示例.md`; Obsidian extension):
 
-::: repo-card repo="pengzhanbo/vuepress-theme-plume" provider="github"
-:::
+<RepoCard repo="pengzhanbo/vuepress-theme-plume" provider="github" />
 
 ---
 

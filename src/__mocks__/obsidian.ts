@@ -6,6 +6,11 @@ export const editorLivePreviewField = StateField.define<boolean>({
   update: (value) => value
 });
 
+export const Platform = {
+  isMobile: false,
+  isDesktop: true
+};
+
 export function setIcon(_el: HTMLElement, _icon: string): void {
   /* no-op */
 }

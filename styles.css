@@ -3344,3 +3344,23 @@ body.theme-dark .vp-code-features {
 .vp-code-features.has-collapsed-lines:not(.collapsed) code {
   padding-bottom: 20px !important;
 }
+
+.plume-public-dir-input {
+  width: 320px;
+}
+
+.vp-footnote {
+  margin: 8px 0;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+}
+
+.vp-footnote-ref {
+  font-size: 0.75em;
+}
+
+.vp-annotation,
+abbr[title] {
+  text-decoration: underline dotted;
+  cursor: help;
+}
